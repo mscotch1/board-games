@@ -2,6 +2,7 @@ import Board from './board.js';
 import ChatLog from './chatlog.js';
 import Painter from './painter.js';
 import Socket, { generateCode } from './socket.js';
+import stateManager from './state.js';
 
 const ROWS = 16;
 const COLS = 12;
@@ -71,6 +72,8 @@ $(document).ready(async () => {
         });
     });
 
+    stateManager.connect(socket);
+
     {
         const waitModal = $(document.getElementById('waitmodal'));
         const gameCode = document.getElementById('gamecode');
@@ -96,12 +99,8 @@ $(document).ready(async () => {
     }
 
     // set up chat logs
-    const chat = new ChatLog(
-        document.getElementById('chatlog'),
-        (message) => { socket.publish('chat', message); },
-    );
-    socket.subscribe('chat', (message) => {
-        chat.addMessage(message);
-    });
+    {
+        const chat = new ChatLog( document.getElementById('chatlog'));
+    }
 });
 

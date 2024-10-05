@@ -49,14 +49,20 @@ export default class Painter {
         }
     }
 
-    #drawSquares(currentLocation) {
+    #drawSquares(currentLocations) {
+        const ownRow = currentLocations.own?.row;
+        const ownCol = currentLocations.own?.col;
+        const otherRow = currentLocations.other?.row;
+        const otherCol = currentLocations.other?.col;
         // Draw the squares
         let squareIndex = 1;
         this.#iterateSquares((row, col, i) => {
             if (this.boardMask[i]) {
                 let squareColor = (row + col) % 2 === 0 ? Painter.getColor('square-1') : Painter.getColor('square-2'); // Alternating colors
-                if (row === currentLocation?.row && col === currentLocation?.col) {
+                if (row === ownRow && col === ownCol) {
                     squareColor = Painter.getColor('square-hover');
+                } else if (row === otherRow && col === otherCol) {
+                    squareColor = Painter.getColor('square-hover-opponent');
                 }
                 this.ctx.fillStyle = squareColor;
                 const args = [col * this.squareEdgePx, row * this.squareEdgePx, this.squareEdgePx, this.squareEdgePx];
@@ -106,8 +112,9 @@ export default class Painter {
         });
     }
 
-    draw(boardState, currentLocation) {
-        this.#drawSquares(currentLocation);
+    draw(boardState, currentLocations) {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.#drawSquares(currentLocations);
         this.#drawPieces(boardState);
     }
 

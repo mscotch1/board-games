@@ -17,23 +17,24 @@ export default class Board {
         // register all state for board and reducers
         stateManager.registerReducer('board/pieces', (state, action) => {
             switch (action?.type) {
-                case 'INIT':
-                    return action.payload;
+                // TODO add more mutators
                 default:
                     return state;
             }
-        });
-        stateManager.dispatch({ channel: 'board/pieces', type: 'INIT', payload: initBoardState });
+        }, initBoardState);
 
-        stateManager.registerReducer('board/currentcell', (state, action) => {
+        stateManager.registerReducer('board/currentcell', (state, action, signature) => {
             switch (action?.type) {
                 case 'SET':
-                    return action.payload;
+                    if (stateManager.signature === signature) {
+                        return { ...state, own: action.payload };
+                    } else {
+                        return { ...state, other: action.payload };
+                    }
                 default:
                     return state;
             }
-        });
-        stateManager.dispatch({ channel: 'board/currentcell', type: 'SET', payload: null });
+        }, { own: null, other: null });
 
         // all board changes re-draw the board
         stateManager.subscribe('board', () => {
@@ -71,7 +72,8 @@ export default class Board {
     onMouseMove(e) {
         const { row, col } = this.calculateRowCol(e.offsetX, e.offsetY);
 
-        if (row === this.currentCell?.row && col === this.currentCell?.col) {
+        const own = stateManager.getState('board/currentcell')?.own;
+        if (row === own?.row && col === own?.col) {
             return;
         }
 
