@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet">
+
+    <title>Monka-Games | Camelot</title>
+
+    <script src="/modules/jquery.min.js"></script>
+    <script src="/modules/bootstrap.bundle.min.js"></script>
+    <link href="/modules/bootstrap.min.css" rel="stylesheet">
+    <script src="/modules/socket.io.js"></script>
+
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body class="m-1 w-100 medieval-font">
+    <div class="app d-flex flex-wrap justify-content-around">
+        <div class="title flex-grow-1 flex-shrink-1 p-2">
+            <h1 class="medieval-font">Camelot</h1>
+            <p>A Game</p>
+        </div>
+        <canvas class="board"></canvas>
+        <div class="chat flex-grow-1 flex-shrink-1 p-2 d-flex flex-column">
+            <h1 class="medieval-font">Chat</h1>
+
+            <form id="chat" class="input-group p-1 w-100">
+                <input type="text" name="message" class="form-control" placeholder="Message" aria-label="Message">
+                <button class="btn btn-primary" title="Send" type="submit">📨</button>
+            </form>
+            <pre class="chatlog d-flex flex-column flex-grow-1 flex-shrink-1 border rounded p-1" id="chatlog"></pre>
+        </div>
+    </div>
+
+    <div class="modal fade" id="codemodal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+        aria-labelledby="staticBackdropLabel" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-1" id="staticBackdropLabel">Camelot</h1>
+                </div>
+                <div class="modal-body">
+                    <button id="newgame" type="button" class="btn btn-lg btn-primary">New Game</button>
+                    <p class="my-2">or</p>
+                    <form id="joingame" class="input-group" style="max-width: 300px">
+                        <button id="joingame" type="submit" class="btn btn-lg btn-primary">Join Game</button>
+                        <input name="gamecode" required type="text" class="form-control" placeholder="Game Code"
+                            aria-label="Example text with button addon" aria-describedby="button-addon1">
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="waitmodal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+        aria-labelledby="staticBackdropLabel" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-1" id="staticBackdropLabel">Camelot</h1>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-3">Send another player the link below to start a game</p>
+                    <pre class="fs-2" id="gamecode"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module" src="scripts/index.js"></script>
+</body>
+
+</html>
