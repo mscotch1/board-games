@@ -1,7 +1,10 @@
+from dotenv import load_dotenv
 from flask import Flask, request, send_from_directory, render_template_string, abort
-from os import path, listdir
 from flask_socketio import SocketIO, emit, send
+from os import path, listdir, getenv
 from uuid import uuid4
+
+load_dotenv()
 
 WEB_DIR = path.abspath(path.join(__file__, path.pardir, "web"))
 GAMES_DIR = path.abspath(path.join(WEB_DIR, "games"))
@@ -26,7 +29,7 @@ INDEX_TEMPLATE = """
 """
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "046901f6-cd18-47f3-930e-5342f3e4a111"
+app.config["SECRET_KEY"] = getenv("SECRET_KEY")
 socketio = SocketIO(app)
 
 clients = {}
