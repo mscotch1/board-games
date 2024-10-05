@@ -1,11 +1,11 @@
 import Board from './board.js';
+import ChatLog from './chatlog.js';
 import Painter from './painter.js';
 import Socket, { generateCode } from './socket.js';
-import ChatLog from './chatlog.js';
 
-const rows = 16;
-const cols = 12;
-const boardMask = new Uint8Array([
+const ROWS = 16;
+const COLS = 12;
+const BOARD_MASK = new Uint8Array([
     0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0,
     0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
     0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
@@ -41,6 +41,7 @@ const initialState = new Uint8Array([
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ]);
+
 $(document).ready(async () => {
     // connect to server
     const socket = await new Promise((resolve) => {
@@ -87,8 +88,8 @@ $(document).ready(async () => {
             [3, { player: 2, icon: 'man' }],
             [4, { player: 2, icon: 'knight' }],
         ]);
-        const canvas = new Painter(rows, cols, boardMask, pieceMap);
-        const board = new Board(rows, cols, boardMask, initialState, canvas);
+        const canvas = new Painter(ROWS, COLS, BOARD_MASK, pieceMap);
+        const board = new Board(ROWS, COLS, BOARD_MASK, initialState, canvas);
         board.ready().then(() => {
             board.draw();
         });

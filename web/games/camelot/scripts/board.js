@@ -1,26 +1,51 @@
+import stateManager from './state.js';
+
 export default class Board {
-    constructor(rows, cols, boardMask, boardState, canvas) {
-        this.rows = rows;
-        this.cols = cols;
+    constructor(ROWS, COLS, BOARD_MASK, initBoardState, canvas) {
+        if (ROWS * COLS !== BOARD_MASK.length) {
+            throw new Error(`Board mask does not fit rows (${ROWS}) × cols (${COLS})`);
+        }
 
-        this.boardMask = boardMask;
-        this.boardState = boardState;
+        if (initBoardState.length !== BOARD_MASK.length) {
+            throw new Error(`Board mask (length ${BOARD_MASK.length}) must be same length as board state (length ${initBoardState.length})`);
+        }
 
-        this.current = null;
+        this.ROWS = ROWS;
+        this.COLS = COLS;
+        this.BOARD_MASK = BOARD_MASK;
+
+        // register all state for board and reducers
+        stateManager.registerReducer('board/pieces', (state, action) => {
+            switch (action?.type) {
+                case 'INIT':
+                    return action.payload;
+                default:
+                    return state;
+            }
+        });
+        stateManager.dispatch({ channel: 'board/pieces', type: 'INIT', payload: initBoardState });
+
+        stateManager.registerReducer('board/currentcell', (state, action) => {
+            switch (action?.type) {
+                case 'SET':
+                    return action.payload;
+                default:
+                    return state;
+            }
+        });
+        stateManager.dispatch({ channel: 'board/currentcell', type: 'SET', payload: null });
+
+        // all board changes re-draw the board
+        stateManager.subscribe('board', () => {
+            this.draw();
+        });
 
         this.canvas = canvas;
         this.canvas.ready().then(() => {
+            // register event receivers
             this.canvas.addEventListener('mousemove', (e) => { this.onMouseMove(e); });
             this.canvas.addEventListener('mouseout', (e) => { this.onMouseOut(e); });
         });
-
-        if (this.rows * this.cols !== boardMask.length) {
-            throw new Error(`Board mask does not fit rows (${rows}) × cols (${cols})`);
-        }
-
-        if (this.boardState.length !== this.boardMask.length) {
-            throw new Error(`Board mask (length ${boardMask.length}) must be same length as board state (length ${boardState.length})`);
-        }
     }
 
     ready() {
@@ -28,13 +53,16 @@ export default class Board {
     }
 
     draw() {
-        this.canvas.draw(this.boardState, this.current);
+        this.canvas.draw(
+            stateManager.getState('board/pieces'),
+            stateManager.getState('board/currentcell'),
+        );
     }
 
     // helper methods for use in event listeners
     calculateRowCol(offsetX, offsetY) {
-        const row = Math.floor((offsetY + 1) / this.canvas.canvas.offsetHeight * this.rows);
-        const col = Math.floor((offsetX + 1) / this.canvas.canvas.offsetWidth * this.cols);
+        const row = Math.floor((offsetY + 1) / this.canvas.canvas.offsetHeight * this.ROWS);
+        const col = Math.floor((offsetX + 1) / this.canvas.canvas.offsetWidth * this.COLS);
 
         return { row, col };
     }
@@ -43,21 +71,18 @@ export default class Board {
     onMouseMove(e) {
         const { row, col } = this.calculateRowCol(e.offsetX, e.offsetY);
 
-        if (row === this.current?.row && col === this.current?.col) {
+        if (row === this.currentCell?.row && col === this.currentCell?.col) {
             return;
         }
 
-        if (this.boardMask[row * this.cols + col]) {
-            this.current = { row, col };
+        if (this.BOARD_MASK[row * this.COLS + col]) {
+            stateManager.dispatch({ channel: 'board/currentcell', type: 'SET', payload: { row, col } });
         } else {
-            this.current = null;
+            stateManager.dispatch({ channel: 'board/currentcell', type: 'SET', payload: null });
         }
-
-        this.draw();
     }
 
     onMouseOut(_e) {
-        this.current = null;
-        this.draw();
+        stateManager.dispatch({ channel: 'board/currentcell', type: 'SET', payload: null });
     }
 }
