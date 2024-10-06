@@ -4,45 +4,6 @@ import Painter from './painter.js';
 import Socket, { generateCode } from './socket.js';
 import stateManager from './state.js';
 
-const ROWS = 16;
-const COLS = 12;
-const BOARD_MASK = new Uint8Array([
-    0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0,
-    0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
-    0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
-    0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0,
-]);
-const initialState = new Uint8Array([
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 2, 1, 1, 1, 1, 1, 1, 2, 0, 0,
-    0, 0, 0, 2, 1, 1, 1, 1, 2, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 4, 3, 3, 3, 3, 4, 0, 0, 0,
-    0, 0, 4, 3, 3, 3, 3, 3, 3, 4, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-]);
-
 $(document).ready(async () => {
     // connect to server
     const socket = await new Promise((resolve) => {
@@ -83,24 +44,25 @@ $(document).ready(async () => {
         waitModal.modal('hide');
     }
 
-    // set up board
+    // set up chat logs
     {
-        const pieceMap = new Map([
+        const chat = new ChatLog( document.getElementById('chatlog'));
+    }
+
+    // set up board and painter
+    {
+        const PIECE_MAP = new Map([
             [1, { player: 1, icon: 'man' }],
             [2, { player: 1, icon: 'knight' }],
             [3, { player: 2, icon: 'man' }],
             [4, { player: 2, icon: 'knight' }],
         ]);
-        const canvas = new Painter(ROWS, COLS, BOARD_MASK, pieceMap);
-        const board = new Board(ROWS, COLS, BOARD_MASK, initialState, canvas);
-        board.ready().then(() => {
-            board.draw();
-        });
-    }
 
-    // set up chat logs
-    {
-        const chat = new ChatLog( document.getElementById('chatlog'));
+        const board = new Board();
+        const canvas = new Painter(board, PIECE_MAP);
+        canvas.ready().then(() => {
+            canvas.draw();
+        });
     }
 });
 
