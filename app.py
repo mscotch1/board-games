@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 from flask import Flask, request, send_from_directory, render_template_string, abort
 from flask_socketio import SocketIO, emit, send
 from os import path, listdir, getenv
-from uuid import uuid4
 
 load_dotenv()
 
@@ -15,13 +14,21 @@ INDEX_TEMPLATE = """
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Game Index</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Monka-Games | Game Index</title>
+
+    <script src="/modules/jquery.min.js"></script>
+    <script src="/modules/bootstrap.bundle.min.js"></script>
+    <link href="/modules/bootstrap.min.css" rel="stylesheet">
+    <script src="/modules/socket.io.js"></script>
 </head>
+
 <body>
     <h1>Start or join a new game</h1>
-    <ul>
+    <ul class="list-group" style="max-width: 400px">
         {% for game in games %}
-        <li><a href="/games/{{ game }}/index.html">{{ game }}</a></li>
+        <li class="list-group-item"><a href="/games/{{ game }}/index.html">{{ game }}</a></li>
         {% endfor %}
     </ul>
 </body>
@@ -47,8 +54,8 @@ def handle_connect(socket):
         opponent_sid = new_game_codes.pop(game_code)
         clients[request.sid] = opponent_sid
         clients[opponent_sid] = request.sid
-        emit("message", {"topic": "game-ready"}, to=request.sid)
-        emit("message", {"topic": "game-ready"}, to=opponent_sid)
+        emit("message", {"topic": "game-ready", "message": {"assignment": "1"}}, to=opponent_sid)
+        emit("message", {"topic": "game-ready", "message": {"assignment": "2"}}, to=request.sid)
     else:
         new_game_codes[game_code] = request.sid
     print(clients)

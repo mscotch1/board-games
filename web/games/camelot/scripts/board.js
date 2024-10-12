@@ -43,8 +43,10 @@ export default class Board {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ]);
 
-    constructor() {
+    constructor(assignment) {
         // register all state for board and reducers
+        this.assignment = assignment;
+
         stateManager.registerReducer('board/pieces', (state, action) => {
             switch (action?.type) {
                 // TODO add more mutators
@@ -53,7 +55,7 @@ export default class Board {
             }
         }, this.state);
 
-        stateManager.registerReducer('board/currentcell', (state, action, signature) => {
+        stateManager.registerReducer('board/interact/hovercell', (state, action, signature) => {
             switch (action?.type) {
                 case 'SET':
                     if (stateManager.signature === signature) {
@@ -65,5 +67,22 @@ export default class Board {
                     return state;
             }
         }, { own: null, other: null });
+    }
+
+    onHover(index) {
+        const own = stateManager.getState('board/interact/hovercell')?.own;
+        if (index === own) {
+            return;
+        }
+
+        if (this.BOARD_MASK[index]) {
+            stateManager.dispatch({ channel: 'board/interact/hovercell', type: 'SET', payload: index });
+        } else {
+            stateManager.dispatch({ channel: 'board/interact/hovercell', type: 'SET', payload: null });
+        }
+    }
+
+    onCursorLeave() {
+        stateManager.dispatch({ channel: 'board/interact/hovercell', type: 'SET', payload: null });
     }
 }

@@ -24,7 +24,7 @@ $(document).ready(async () => {
             clean();
         });
 
-        joinGame.on('submit', function (e) {
+        joinGame.on('submit', function onSubmit(e) {
             const formData = new FormData(this);
             e.preventDefault();
             resolve(new Socket(formData.get('gamecode')));
@@ -33,33 +33,36 @@ $(document).ready(async () => {
         });
     });
 
-    stateManager.connect(socket);
-
+    let assignment;
     {
         const waitModal = $(document.getElementById('waitmodal'));
         const gameCode = document.getElementById('gamecode');
         gameCode.innerText = socket.code;
+
         waitModal.modal('show');
-        await socket.on('game-ready');
+        assignment = (await socket.on('game-ready'))?.assignment;
         waitModal.modal('hide');
+
+        stateManager.connect(socket);
     }
 
     // set up chat logs
     {
-        const chat = new ChatLog( document.getElementById('chatlog'));
+        const chat = new ChatLog(document.getElementById('chatlog'));
     }
 
     // set up board and painter
     {
         const PIECE_MAP = new Map([
-            [1, { player: 1, icon: 'man' }],
-            [2, { player: 1, icon: 'knight' }],
-            [3, { player: 2, icon: 'man' }],
-            [4, { player: 2, icon: 'knight' }],
+            [1, { icon: 'man', player: 1 }],
+            [2, { icon: 'knight', player: 1 }],
+            [3, { icon: 'man', player: 2 }],
+            [4, { icon: 'knight', player: 2 }],
         ]);
+        const SPRITE_NAMES = ['man1', 'man2', 'knight1', 'knight2'];
 
-        const board = new Board();
-        const canvas = new Painter(board, PIECE_MAP);
+        const board = new Board(assignment);
+        const canvas = new Painter(board, PIECE_MAP, SPRITE_NAMES);
         canvas.ready().then(() => {
             canvas.draw();
         });
