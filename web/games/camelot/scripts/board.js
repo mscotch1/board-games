@@ -49,7 +49,11 @@ export default class Board {
 
         stateManager.registerReducer('board/pieces', (state, action) => {
             switch (action?.type) {
-                // TODO add more mutators
+                case 'MOVE': {
+                    const { from, to } = action.payload;
+                    this.handleMove(from, to);
+                    break;
+                }
                 default:
                     return state;
             }
@@ -67,6 +71,50 @@ export default class Board {
                     return state;
             }
         }, { own: null, other: null });
+
+        stateManager.registerReducer('board/interact/selectcell', (state, action) => {
+            switch (action?.type) {
+                case 'SELECT':
+                default:
+                    return state === action.payload ? null : action.payload;
+            }
+        });
+
+        stateManager.registerReducer('game/turn', (state, action) => {
+            switch (action?.type) {
+                case 'SWITCH':
+                default:
+                    return state === '1' ? '2' : '1';
+            }
+        }, '1');
+    }
+
+    handleMove(from, to) {
+        console.log(from, to);
+        // check if legal move
+
+        // if so, perform move
+        
+        // if piece has no further legal moves, switch whose turn it is
+    }
+
+    isOwnPiece(index) {
+        const playerIndex = this.assignment === '1' ? 1 : 0;
+
+        return Math.floor((this.state[index] - 1) / 2) === playerIndex;
+    }
+
+    onClick(index) {
+        const currentPlayer = stateManager.getState('game/turn');
+        if (currentPlayer !== this.assignment) {
+            return;
+        }
+
+        if (this.isOwnPiece(index)) {
+            stateManager.dispatch({ channel: 'board/interact/selectcell', type: 'SELECT', payload: index });
+        } else {
+            stateManager.dispatch({ channel: 'board/interact/selectcell', type: 'SELECT', payload: null });
+        }
     }
 
     onHover(index) {

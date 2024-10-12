@@ -1,9 +1,11 @@
 :root {
-    --square-empty: #3ca1e3;
+    --square-empty: #3CA1E3;
     --square-1: #FFDDA7;
     --square-2: #ACBAA5;
+    --square-hover-own: #44BB55;
     --square-hover: #707090;
     --square-hover-opponent: #999;
+    --square-select: #009922;
 
     --border: #111;
 

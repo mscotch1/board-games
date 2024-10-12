@@ -12,7 +12,7 @@ export default class Painter {
         this.PIECE_MAP = PIECE_MAP;
         this.SPRITE_NAMES = SPRITE_NAMES;
 
-        this.assignment = board.assignment;
+        this.board = board;
 
         this.canvas = document.getElementsByClassName('board')[0];
         this.ctx = this.canvas.getContext('2d');
@@ -47,7 +47,7 @@ export default class Painter {
             for (let col = 0; col < this.COLS; ++col) {
                 const i = row * this.COLS + col;
                 if (this.BOARD_MASK[i]) {
-                    if (this.assignment == 1) {
+                    if (this.board.assignment == 1) {
                         callback(row, col, i);
                     } else {
                         callback(this.ROWS - 1 - row, this.COLS - 1 - col, i);
@@ -57,50 +57,71 @@ export default class Painter {
         }
     }
 
-    #drawSquares() {
-        const hoverState = stateManager.getState('board/interact/hovercell')
+    drawSingleSquare(row, col, i) {
+        let color = (row + col) % 2 === 0 ? Painter.getColor('square-1') : Painter.getColor('square-2'); // Alternating colors
 
-        // Draw the squares
+        const hoverState = stateManager.getState('board/interact/hovercell')
+        const selectCell = stateManager.getState('board/interact/selectcell')
+
+        // override default color if hovering
+        if (i === hoverState?.own && this.board.isOwnPiece(i)) {
+            color = Painter.getColor('square-hover-own');
+        } else if (i === hoverState?.own) {
+            color = Painter.getColor('square-hover');
+        } else if (i === hoverState?.other) {
+            color = Painter.getColor('square-hover-opponent');
+        }
+
+        // override default and hover if selected
+        if (i === selectCell) {
+            color = Painter.getColor('square-select');
+        }
+
+        this.ctx.fillStyle = color;
+        const args = [col * this.SQUARE_EDGE_PX, row * this.SQUARE_EDGE_PX, this.SQUARE_EDGE_PX, this.SQUARE_EDGE_PX];
+        this.ctx.fillRect(...args);
+
+        this.ctx.strokeStyle = Painter.getColor('border');
+        this.ctx.lineWidth = 3;
+        if (this.BOARD_MASK[i]) {
+            this.ctx.strokeRect(...args);
+        }
+    }
+
+    drawDecorations(row, col, i, squareIndex) {
+        if (row === 0 || row === this.ROWS - 1) {
+            // castle circles
+            this.ctx.strokeStyle = Painter.getColor('border');
+            this.ctx.fillStyle = Painter.getColor('castle');
+            const center = [(col + 0.5) * this.SQUARE_EDGE_PX, (row + 0.5) * this.SQUARE_EDGE_PX];
+            this.ctx.beginPath();
+            this.ctx.arc(...center, 10, 0, 2 * Math.PI);
+            this.ctx.fill();
+            this.ctx.stroke();
+
+            this.ctx.font = 'bold 11px MedievalSharp';
+            this.ctx.fillStyle = Painter.getColor('border');
+            this.ctx.fillText({
+                '5': 'A',
+                '6': 'B',
+                '185': 'Y',
+                '186': 'Z',
+            }[`${i}`], col * this.SQUARE_EDGE_PX + 2, (row + 1) * this.SQUARE_EDGE_PX - 2);
+        } else {
+            // numbers
+            this.ctx.font = 'bold 11px MedievalSharp';
+            this.ctx.fillStyle = Painter.getColor('border');
+            this.ctx.fillText(squareIndex, col * this.SQUARE_EDGE_PX + 2, (row + 1) * this.SQUARE_EDGE_PX - 2);
+        }
+    }
+
+    #drawSquares() {
         let squareIndex = 1;
         this.#iterateSquares((row, col, i) => {
-            let squareColor = (row + col) % 2 === 0 ? Painter.getColor('square-1') : Painter.getColor('square-2'); // Alternating colors
-            if (i === hoverState?.own) {
-                squareColor = Painter.getColor('square-hover');
-            } else if (i === hoverState?.other) {
-                squareColor = Painter.getColor('square-hover-opponent');
-            }
-            this.ctx.fillStyle = squareColor;
-            const args = [col * this.SQUARE_EDGE_PX, row * this.SQUARE_EDGE_PX, this.SQUARE_EDGE_PX, this.SQUARE_EDGE_PX];
-            this.ctx.fillRect(...args);
-
-            this.ctx.strokeStyle = Painter.getColor('border');
-            this.ctx.lineWidth = 3;
-            if (this.BOARD_MASK[i]) {
-                this.ctx.strokeRect(...args);
-            }
-
-            // draw castle circles and letter text
-            if (row === 0 || row === this.ROWS - 1) {
-                this.ctx.strokeStyle = Painter.getColor('border');
-                this.ctx.fillStyle = Painter.getColor('castle');
-                const center = [(col + 0.5) * this.SQUARE_EDGE_PX, (row + 0.5) * this.SQUARE_EDGE_PX];
-                this.ctx.beginPath();
-                this.ctx.arc(...center, 10, 0, 2 * Math.PI);
-                this.ctx.fill();
-                this.ctx.stroke();
-
-                this.ctx.font = 'bold 11px MedievalSharp';
-                this.ctx.fillStyle = Painter.getColor('border');
-                this.ctx.fillText({
-                    '5': 'A',
-                    '6': 'B',
-                    '185': 'Y',
-                    '186': 'Z',
-                }[`${i}`], col * this.SQUARE_EDGE_PX + 2, (row + 1) * this.SQUARE_EDGE_PX - 2);
-            } else if (this.BOARD_MASK[i]) {
-                this.ctx.font = 'bold 11px MedievalSharp';
-                this.ctx.fillStyle = Painter.getColor('border');
-                this.ctx.fillText(squareIndex++, col * this.SQUARE_EDGE_PX + 2, (row + 1) * this.SQUARE_EDGE_PX - 2);
+            this.drawSingleSquare(row, col, i);
+            this.drawDecorations(row, col, i, squareIndex);
+            if (row > 0 || row < this.ROWS - 1) {
+                ++squareIndex;
             }
         });
     }
@@ -134,7 +155,7 @@ export default class Painter {
     calculateIndex(offsetX, offsetY) {
         const { row, col } = this.calculateRowCol(offsetX, offsetY);
         const index = row * this.COLS + col;
-        if (this.assignment == 1) {
+        if (this.board.assignment == 1) {
             return index;
         }
 
@@ -148,6 +169,10 @@ export default class Painter {
         });
         this.canvas.addEventListener('mouseout', (_e) => {
             board.onCursorLeave();
+        });
+        this.canvas.addEventListener('click', (e) => {
+            const index = this.calculateIndex(e.offsetX, e.offsetY);
+            board.onClick(index);
         });
     }
 

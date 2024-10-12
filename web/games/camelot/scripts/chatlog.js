@@ -31,7 +31,7 @@ export default class ChatLog {
             const timestamp = new Date().toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const chatBubble = document.createElement('div');
 
-            const chatBubbleClasses = ['badge', 'text-start', 'text-wrap', 'fs-6', 'm-2'];
+            const chatBubbleClasses = ['badge', 'text-start', 'text-wrap', 'm-2'];
             if (signature === stateManager.signature) {
                 chatBubbleClasses.push('text-bg-primary', 'align-self-end');
             } else {
