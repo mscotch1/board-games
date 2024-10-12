@@ -94,8 +94,8 @@ export default class Painter {
                 this.ctx.fillText({
                     '5': 'A',
                     '6': 'B',
-                    '185': 'X',
-                    '186': 'Y',
+                    '185': 'Y',
+                    '186': 'Z',
                 }[`${i}`], col * this.SQUARE_EDGE_PX + 2, (row + 1) * this.SQUARE_EDGE_PX - 2);
             } else if (this.BOARD_MASK[i]) {
                 this.ctx.font = 'bold 11px MedievalSharp';
