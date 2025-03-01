@@ -48,10 +48,10 @@ $(document).ready(async () => {
 
     // set up chat logs
     {
-        const chat = new ChatLog(document.getElementById('chatlog'));
+        new ChatLog(document.getElementById('chatlog'));
     }
 
-    // set up board and painter
+    // set up board, painter, other UI elements
     {
         const PIECE_MAP = new Map([
             [1, { icon: 'man', player: 1 }],
@@ -65,6 +65,17 @@ $(document).ready(async () => {
         const canvas = new Painter(board, PIECE_MAP, SPRITE_NAMES);
         canvas.ready().then(() => {
             canvas.draw();
+        });
+
+        // turn indicator
+        stateManager.subscribe('game/turn', (state) => {
+            const turnIndicator = document.getElementById('turn-indicator');
+            turnIndicator.innerText = state === board.assignment ? 'Your turn' : 'Waiting for opponent ⏳';
+            const [oldClass, newClass] = state === board.assignment
+                ? ['bg-danger', 'bg-success']
+                : ['bg-success', 'bg-danger'];
+            turnIndicator.classList.remove(oldClass);
+            turnIndicator.classList.add(newClass);
         });
     }
 });

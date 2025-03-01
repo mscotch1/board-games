@@ -150,14 +150,6 @@ export default class Board {
         stateManager.subscribe('menu/endturn', (state) => {
             this.endTurnButton.disabled = state;
         });
-        stateManager.subscribe('game/turn', (state) => {
-            this.turnIndicator.innerText = state === this.assignment ? '✅' : '❌';
-            const [oldClass, newClass] = state === this.assignment
-                ? ['bg-danger', 'bg-success']
-                : ['bg-success', 'bg-danger'];
-            this.turnIndicator.classList.remove(oldClass);
-            this.turnIndicator.classList.add(newClass);
-        });
     }
 
     setupMenuBar() {
@@ -172,7 +164,6 @@ export default class Board {
               type: 'POP',
             });
         };
-        this.turnIndicator = document.getElementById('turn-indicator');
     }
 
     endTurn() {
