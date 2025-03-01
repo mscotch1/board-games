@@ -1,7 +1,7 @@
 import stateManager from './state.js';
 
 export default class Painter {
-    SQUARE_EDGE_PX = 68;
+    SQUARE_EDGE_PX = 58;
     #images = [];
     #sprites = new Map();
 
@@ -14,7 +14,7 @@ export default class Painter {
 
         this.board = board;
 
-        this.canvas = document.getElementsByClassName('board')[0];
+        this.canvas = document.getElementById('board-canvas');
         this.ctx = this.canvas.getContext('2d');
 
         this.canvas.width = this.COLS * this.SQUARE_EDGE_PX;
@@ -61,19 +61,25 @@ export default class Painter {
         let color = (row + col) % 2 === 0 ? Painter.getColor('square-1') : Painter.getColor('square-2'); // Alternating colors
 
         const hoverState = stateManager.getState('board/interact/hovercell')
-        const selectCell = stateManager.getState('board/interact/selectcell')
+        const moveCell = stateManager.getState('board/turn/move')?.at(-1);
 
         // override default color if hovering
         if (i === hoverState?.own && this.board.isOwnPiece(i)) {
-            color = Painter.getColor('square-hover-own');
+            if (this.board.isCurrentPlayerPiece(i)) {
+                color = Painter.getColor('square-hover-own');
+            } else {
+                color = Painter.getColor('square-hover-opponent');
+            }
+        } else if (i === hoverState?.own && this.board.isOpponentPiece(i)) {
+            color = Painter.getColor('square-hover-opponent');
         } else if (i === hoverState?.own) {
             color = Painter.getColor('square-hover');
         } else if (i === hoverState?.other) {
-            color = Painter.getColor('square-hover-opponent');
+            color = Painter.getColor('square-hover-ghost');
         }
 
         // override default and hover if selected
-        if (i === selectCell) {
+        if (i === moveCell) {
             color = Painter.getColor('square-select');
         }
 
@@ -120,7 +126,7 @@ export default class Painter {
         this.#iterateSquares((row, col, i) => {
             this.drawSingleSquare(row, col, i);
             this.drawDecorations(row, col, i, squareIndex);
-            if (row > 0 || row < this.ROWS - 1) {
+            if (row > 0 && row < this.ROWS - 1) {
                 ++squareIndex;
             }
         });
@@ -128,12 +134,30 @@ export default class Painter {
 
     #drawPieces() {
         // Draw the pieces
-        const boardState = stateManager.getState('board/pieces');
+        const move = stateManager.getState('board/turn/move');
+        const boardState = this.board.makeMoves(
+            stateManager.getState('board/pieces'),
+            move,
+        );
+
+        const validMoves = this.board.validMoves(move);
+        
         this.#iterateSquares((row, col, i) => {
             if (boardState[i]) {
                 const { player, icon } = this.PIECE_MAP.get(boardState[i]);
-                this.ctx.drawImage(this.#sprites.get(`${icon}${player}`), col * this.SQUARE_EDGE_PX + 12, row * this.SQUARE_EDGE_PX + 8);
+                this.ctx.drawImage(this.#sprites.get(`${icon}${player}`), col * this.SQUARE_EDGE_PX + 8, row * this.SQUARE_EDGE_PX + 4);
                 this.ctx.filter = 'none';
+            }
+
+            if (validMoves.includes(i)) {
+              // draw indicator
+              this.ctx.strokeStyle = Painter.getColor('candidate');
+              this.ctx.fillStyle = Painter.getColor('candidate');
+              const center = [(col + 0.5) * this.SQUARE_EDGE_PX, (row + 0.5) * this.SQUARE_EDGE_PX];
+              this.ctx.beginPath();
+              this.ctx.arc(...center, 6, 0, 2 * Math.PI);
+              this.ctx.fill();
+              this.ctx.stroke();
             }
         });
     }

@@ -19,21 +19,44 @@
     <link rel="stylesheet" href="index.css">
 </head>
 
-<body class="m-1 w-100 medieval-font">
+<body>
     <div class="app d-flex flex-wrap justify-content-around">
         <div class="title flex-grow-1 flex-shrink-1 p-2">
             <h1 class="medieval-font">Camelot</h1>
             <p>A Game</p>
         </div>
-        <canvas class="board border border-dark border-4"></canvas>
+        <div class="d-flex flex-column board h-100 overflow-scroll">
+          <div class="btn-group rounded-0 sticky-top">
+            <div id="turn-indicator"></div>
+            <button
+              type="button"
+              style="width: 0"
+              class="btn btn-secondary rounded-0"
+              id="undo">
+              Undo ⎌ 
+            </button>
+            <button
+              type="button"
+              style="width: 0"
+              class="btn btn-primary rounded-0"
+              id="end-turn">
+              End Turn ➤
+            </button>
+          </div>
+          <canvas id="board-canvas" class="border border-dark border-4"></canvas>
+        </div>
         <div class="chat flex-grow-1 flex-shrink-1 p-2 d-flex flex-column">
             <h1 class="medieval-font">Chat</h1>
-
             <form id="chat" class="input-group p-1 w-100">
                 <input type="text" name="message" class="form-control" placeholder="Message" aria-label="Message">
-                <button class="btn btn-primary" title="Send" type="submit">📨</button>
+                <button class="btn btn-primary" title="Send" type="submit">➤</button>
             </form>
-            <p class="chatlog d-flex flex-column flex-grow-1 flex-shrink-1 medieval-font fs-3 border rounded p-1" id="chatlog"></p>
+
+            <p
+              style="min-height: 0"
+              class="chatlog d-flex flex-column flex-grow-1 flex-shrink-1 fs-3 border rounded p-1"
+              id="chatlog">
+            </p>
         </div>
     </div>
 

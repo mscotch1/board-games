@@ -43,7 +43,7 @@ export default class ChatLog {
             chatBubble.innerText = message;
             chatBubble.title = timestamp;
 
-            this.chatLog.appendChild(chatBubble);
+            this.chatLog.prepend(chatBubble);
         });
     }
 }

@@ -26,6 +26,8 @@ export default new class StateManager {
             this.subscribers[channel] = [];
         }
         this.subscribers[channel].push(callback);
+
+        callback(this.state[channel]);
     }
 
     // Unsubscribe from a channel

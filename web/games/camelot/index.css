@@ -4,27 +4,35 @@
     --square-2: #ACBAA5;
     --square-hover-own: #44BB55;
     --square-hover: #707090;
-    --square-hover-opponent: #999;
+    --square-hover-opponent: #BB4455;
+    --square-hover-ghost: #999;
     --square-select: #009922;
 
     --border: #111;
 
     --red: #be525b;
     --castle: #f0f0f0;
+    --candidate: #B0759F;
 }
 
 .app {
-    padding: 0;
+    padding: 1rem;
     margin: 0;
 
     height: 100%;
-    width: 100%;
+    width: 100vw;
     overflow: scroll;
+    position: relative;
+}
+
+@media (min-width: 1200px) {
+    .app {
+      height: 100vh;
+    }
 }
 
 .board {
     overflow: hidden;
-    resize: both;
     background-color: var(--square-empty);
 }
 
@@ -36,10 +44,13 @@
 .chat {
     width: 0;
     min-width: 200px;
+    max-height: 100%;
 }
 
 .chatlog {
     min-height: 30px;
+    max-height: 100%;
+    overflow: scroll;
 }
 
 .medieval-font {
