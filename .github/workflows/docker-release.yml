@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"  # Runs when a new version tag (e.g., v1.0.0) is pushed
 
+permissions:
+  contents: write  # ✅ This grants permission to create a release
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
