@@ -1,0 +1,27 @@
+name: Build and Upload Docker Image to GitHub Releases
+
+on:
+  push:
+    tags:
+      - "v*"  # Runs when a new version tag (e.g., v1.0.0) is pushed
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: |
+          docker build -t board-games:latest .
+          docker save -o board-games.tar board-games:latest
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: board-games.tar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
