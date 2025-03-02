@@ -22,11 +22,11 @@
 <body>
     <div class="app d-flex flex-wrap justify-content-around">
         <div class="title flex-grow-1 flex-shrink-1 p-2">
-            <h1 class="medieval-font">Camelot</h1>
-            <p>A Game</p>
-            <div id="turn-indicator"
-              class="rounded p-2 text-white">
+            <div class="d-flex align-items-center medieval-font">
+                <h1 class="modal-title fs-1 pe-3">Camelot</h1>
+                <p class="mb-0">A Game</p>
             </div>
+            <div class="rounded p-3 text-white" id="turn-indicator"></div>
         </div>
         <div class="d-flex flex-column board h-100 overflow-scroll">
           <div class="btn-group rounded-0 sticky-top">
@@ -66,8 +66,9 @@
         aria-labelledby="staticBackdropLabel" aria-hidden="true">
         <div class="modal-dialog modal-fullscreen">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-1" id="staticBackdropLabel">Camelot</h1>
+                <div class="modal-header medieval-font">
+                    <h1 class="modal-title fs-1 pe-3">Camelot</h1>
+                    <p class="mb-0">A Game</p>
                 </div>
                 <div class="modal-body">
                     <button id="newgame" type="button" class="btn btn-lg btn-primary">New Game</button>
@@ -82,14 +83,16 @@
         </div>
     </div>
 
-    <div class="modal" id="waitmodal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+    <div class="modal show" id="waitmodal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
         aria-labelledby="staticBackdropLabel" aria-hidden="true">
         <div class="modal-dialog modal-fullscreen">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-1" id="staticBackdropLabel">Camelot</h1>
+                <div class="modal-header medieval-font">
+                    <h1 class="modal-title fs-1 pe-3">Camelot</h1>
+                    <p class="mb-0">A Game</p>
                 </div>
                 <div class="modal-body">
+                    <a href="javascript:void(0)" onclick="window.location.href = window.location.origin + window.location.pathname;">Back</a>
                     <p class="fs-3">Send another player the link below to start a game</p>
                     <pre class="fs-2" id="gamecode"></pre>
                 </div>
@@ -97,6 +100,23 @@
         </div>
     </div>
 
+    <div class="modal fade" id="endgame" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+        aria-labelledby="staticBackdropLabel" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header medieval-font">
+                    <h1 class="modal-title fs-1 pe-3">Camelot</h1>
+                    <p class="mb-0">A Game</p>
+                </div>
+                <div class="modal-body">
+                    <p id="endtext" class="fs-3 rounded text-white p-3"></p>
+                    <form id="playagain" class="input-group" style="max-width: 300px">
+                        <button id="replay" type="button" class="btn btn-lg btn-primary">Play Again?</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="scripts/index.js"></script>
 </body>

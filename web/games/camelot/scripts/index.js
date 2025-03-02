@@ -5,8 +5,23 @@ import Socket, { generateCode } from './socket.js';
 import stateManager from './state.js';
 
 $(document).ready(async () => {
+    const url = new URL(window.location);
+    let code = url.searchParams.get('gamecode');
+
+    const playAgain = $(document.getElementById('replay'));
+    playAgain.on('click', function onSubmit(e) {
+        e.preventDefault();
+        url.searchParams.set('gamecode', code);
+        window.location = url.href;
+    });
+
     // connect to server
     const socket = await new Promise((resolve) => {
+        if (code) {
+            resolve(new Socket(code));
+            return;
+        }
+
         // either get code from user or generate one
         const codeModal = $(document.getElementById('codemodal'));
         codeModal.modal('show');
@@ -19,7 +34,8 @@ $(document).ready(async () => {
         };
 
         newGame.on('click', () => {
-            resolve(new Socket(generateCode()));
+            code = generateCode();
+            resolve(new Socket(code));
             codeModal.modal('hide');
             clean();
         });
@@ -27,7 +43,8 @@ $(document).ready(async () => {
         joinGame.on('submit', function onSubmit(e) {
             const formData = new FormData(this);
             e.preventDefault();
-            resolve(new Socket(formData.get('gamecode')));
+            code = formData.get('gamecode');
+            resolve(new Socket(code));
             codeModal.modal('hide');
             clean();
         });
@@ -67,6 +84,22 @@ $(document).ready(async () => {
             canvas.draw();
         });
 
+        stateManager.registerReducer('game/turn', (state, action) => {
+            switch (action?.type) {
+                case 'SWITCH':
+                default:
+                    return state === '1' ? '2' : '1';
+            }
+        }, '1');
+
+        stateManager.registerReducer('game/winner', (_, action) => {
+            switch (action?.type) {
+                case 'FINISH':
+                default:
+                    return action?.payload ?? null;
+            }
+        }, { winner: null });
+
         // turn indicator
         stateManager.subscribe('game/turn', (state) => {
             const turnIndicator = document.getElementById('turn-indicator');
@@ -76,6 +109,27 @@ $(document).ready(async () => {
                 : ['bg-success', 'bg-danger'];
             turnIndicator.classList.remove(oldClass);
             turnIndicator.classList.add(newClass);
+        });
+
+        // game over
+        stateManager.subscribe('game/winner', ({ winner }) => {
+            if (winner === null) {
+                return
+            }
+
+            const isWinner = board.assignment === winner;
+
+            const endGame = $(document.getElementById('endgame'));
+            const endText = document.getElementById('endtext');
+            if (endText) {
+                const [className, text] = isWinner
+                    ? ['bg-success', 'Congratulations, you won!']
+                    : ['bg-secondary', 'Better luck next time, good game!'];
+                endText.innerText = text;
+                endText.classList.add(className);
+            }
+
+            endGame.modal('show');
         });
     }
 });

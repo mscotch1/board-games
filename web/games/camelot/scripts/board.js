@@ -97,14 +97,6 @@ export default class Board {
             }
         }, []);
 
-        stateManager.registerReducer('game/turn', (state, action) => {
-            switch (action?.type) {
-                case 'SWITCH':
-                default:
-                    return state === '1' ? '2' : '1';
-            }
-        }, '1');
-
         stateManager.registerReducer('menu/endturn', (_state, action) => {
             switch (action?.type) {
                 case 'ENABLE':
@@ -131,6 +123,17 @@ export default class Board {
     subscribe() {
         stateManager.subscribe('board/pieces', (state) => {
             this.state = state;
+
+            const winner = this.checkWinner();
+            if (winner !== null) {
+                stateManager.dispatch({
+                    channel: 'game/winner',
+                    type: 'FINISH',
+                    payload: {
+                        winner,
+                    },
+                }, false);
+            }
         });
         stateManager.subscribe('board/turn/move', (state) => {
             const isCurrentTurn = stateManager.getState('game/turn') === this.assignment;
@@ -164,6 +167,29 @@ export default class Board {
               type: 'POP',
             });
         };
+    }
+
+    checkWinner() {
+        const backRow = this.state.filter((_v, i) => this.rowFromIndex(i) === 0 && this.BOARD_MASK[i]);
+        const frontRow = this.state.filter((_v, i) => this.rowFromIndex(i) === this.ROWS - 1 && this.BOARD_MASK[i]);
+
+        if (backRow.every((v) => v > 0 && v < 3)) {
+            return '1';
+        }
+
+        if (frontRow.every((v) => v >= 3)) {
+            return '2';
+        }
+
+        if (this.state.filter((_v, i) => this.isOpponentPiece(i)).length === 0) {
+            return this.assignment;
+        }
+
+        if (this.state.filter((_v, i) => this.isOwnPiece(i)).length === 0) {
+            return this.assignment === '1' ? '2' : '1';
+        }
+
+        return null;
     }
 
     endTurn() {
@@ -304,7 +330,11 @@ export default class Board {
     }
 
     rowFromIndex(index) {
-        return Math.floor(index / this.COLS)
+        return Math.floor(index / this.COLS);
+    }
+
+    colFromIndex(index) {
+        return index % this.COLS;
     }
 
     // filters for when neighbors are out of bounds
@@ -316,10 +346,15 @@ export default class Board {
         ];
 
         const currRow = this.rowFromIndex(index);
+        const currCol = this.colFromIndex(index);
         return offsets.map((v) => v + index).filter((candidateIndex) => {
             // check if in adjacent or same row
             const candidateRow = this.rowFromIndex(candidateIndex);
-            if (Math.abs(candidateRow - currRow) > 1) {
+            const candidateCol = this.colFromIndex(candidateIndex);
+            if (
+              Math.abs(candidateRow - currRow) > 1
+              || Math.abs(candidateCol - currCol) > 1
+            ) {
                 return false;
             }
 
@@ -336,11 +371,17 @@ export default class Board {
         ].map((v) => v * 2);
 
         const currRow = this.rowFromIndex(index);
+        const currCol = this.colFromIndex(index);
         return offsets.map((v) => v + index).filter((candidateIndex) => {
             // check if in 2 * adjacent or same row
             const candidateRow = this.rowFromIndex(candidateIndex);
+            const candidateCol = this.colFromIndex(candidateIndex);
             const rowDiff = Math.abs(candidateRow - currRow);
-            if (rowDiff !== 0 && rowDiff !== 2) {
+            const colDiff = Math.abs(candidateCol - currCol);
+            if (
+              (rowDiff !== 0 && rowDiff !== 2)
+              || (colDiff !== 0 && colDiff !== 2)
+            ) {
                 return false;
             }
 
