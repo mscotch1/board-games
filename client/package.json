@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/third-party-licenses.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run"
@@ -15,5 +16,6 @@
   "devDependencies": {
     "vite": "^8.3.8",
     "vitest": "^5.1.1"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }
