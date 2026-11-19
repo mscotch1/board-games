@@ -151,10 +151,11 @@ typedef struct {
     const Config *c;
     int player, start, knight;
     uint8_t work[MAXSQ];
-    uint8_t cantered[MAXSQ];
+    uint8_t cantered[MAXSQ]; /* squares already landed on by a canter in the turn being built */
     int16_t jumped[MAXJ];
     Move *caps, *oth;
     int ncaps, noth;
+    int compel; /* some capturing turn begins with a jump, so the duty to jump applies */
 } Gen;
 
 static void add_move(Gen *g, int capture, int to, int nj) {
@@ -172,7 +173,8 @@ static void add_move(Gen *g, int capture, int to, int nj) {
     if (nj) memcpy(m->j, g->jumped, (size_t)nj * sizeof(int16_t));
 }
 
-static void visit(Gen *g, int pos, int steps, int phase, int nj) {
+/* `lead` is whether the turn's first step was a jump (as opposed to a canter, in a knight's charge). */
+static void visit(Gen *g, int pos, int steps, int phase, int nj, int lead) {
     const Config *c = g->c;
     int player = g->player;
     int entered_goal = c->ends_turn && steps > 0 && c->is_goal[player][pos];
@@ -191,8 +193,13 @@ static void visit(Gen *g, int pos, int steps, int phase, int nj) {
 
     if (steps > 0) {
         if (phase == PH_JUMP) {
-            if (!njumps) add_move(g, 1, pos, nj);
-        } else if (pos != g->start) { /* cantering round to where it began would be passing */
+            if (!njumps) {
+                add_move(g, 1, pos, nj);
+                if (lead) g->compel = 1;
+            }
+        } else if (pos != g->start && !(g->knight && njumps)) {
+            /* (cantering round to where it began would be passing, and a knight whose canter brought it
+               next to an enemy piece it can jump has to jump it) */
             add_move(g, 0, pos, 0);
         }
     }
@@ -203,18 +210,18 @@ static void visit(Gen *g, int pos, int steps, int phase, int nj) {
         uint8_t taken = g->work[jo[k]];
         g->work[jo[k]] = 0;
         g->jumped[nj] = (int16_t)jo[k];
-        visit(g, jl[k], steps + 1, PH_JUMP, nj + 1);
+        visit(g, jl[k], steps + 1, PH_JUMP, nj + 1, steps == 0 ? 1 : lead);
         g->work[jo[k]] = taken;
     }
 
     if (phase != PH_JUMP) {
         for (k = 0; k < c->jmp_n[pos]; k++) {
             int landing = c->jmp[pos][k], over = (pos + landing) / 2;
-            if (g->work[over] != 0 && OWNER(g->work[over]) == player && !g->cantered[over] &&
+            if (g->work[over] != 0 && OWNER(g->work[over]) == player && !g->cantered[landing] &&
                 g->work[landing] == 0 && !c->is_home[player][landing]) {
-                g->cantered[over] = 1;
-                visit(g, landing, steps + 1, PH_CANTER, nj);
-                g->cantered[over] = 0;
+                g->cantered[landing] = 1;
+                visit(g, landing, steps + 1, PH_CANTER, nj, steps == 0 ? 0 : lead);
+                g->cantered[landing] = 0;
             }
         }
     }
@@ -246,7 +253,9 @@ static void explore(Gen *g, const uint8_t *board, int start, int cm_left) {
     g->start = start;
     g->knight = IS_KNIGHT(piece);
     g->work[start] = 0; /* the moving piece is lifted off the board while it travels */
-    visit(g, start, 0, PH_START, 0);
+    g->cantered[start] = 1; /* squares landed on in a canter (the start counts): never twice in one turn */
+    visit(g, start, 0, PH_START, 0, 0);
+    g->cantered[start] = 0;
     g->work[start] = piece;
 }
 
@@ -261,6 +270,7 @@ static int gen_moves(const Config *c, const uint8_t *board, int player, int cm_u
     g.caps = caps;
     g.oth = oth;
     g.ncaps = g.noth = 0;
+    g.compel = 0;
     memcpy(g.work, board, (size_t)c->size);
     memset(g.cantered, 0, (size_t)c->size);
 
@@ -277,10 +287,12 @@ static int gen_moves(const Config *c, const uint8_t *board, int player, int cm_u
         for (i = 0; i < c->size; i++)
             if (board[i] && OWNER(board[i]) == player) explore(&g, board, i, cm_left);
     }
-    if (g.ncaps) {
+    if (g.compel) { /* the duty to jump: only capturing turns (a knight's charge is one way to jump) */
         *out = caps;
         return g.ncaps;
     }
+    /* nothing can jump directly, so a knight's charge is optional: it is one more turn on offer */
+    for (i = 0; i < g.ncaps && g.noth < MAXMOVES; i++) oth[g.noth++] = caps[i];
     *out = oth;
     return g.noth;
 }

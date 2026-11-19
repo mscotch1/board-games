@@ -338,6 +338,6 @@ class Game:
             self.board[i] and rules.owner(self.board[i]) == player for i in self.variant.home_castle[player]
         ):
             raise IllegalMove("The piece in your castle must leave it first")
-        if any(t.is_capture for t in self._legal):
+        if any(t.jumped[0] is not None for t in self._legal):
             raise IllegalMove("You must capture when you can, and finish the jump")
         raise IllegalMove("That move is not allowed")

@@ -103,6 +103,14 @@ describe('captures', () => {
     expect(mustCapture([step(1, 2)])).toBe(false);
     expect(mustCapture([])).toBe(false);
   });
+
+  it("does not count a knight's charge on its own as forced", () => {
+    const charge = { moves: [10, 20, 30], jumped: [null, 25] };
+    expect(mustCapture([charge])).toBe(false);
+    expect(mustCapture([step(1, 2), charge])).toBe(false);
+    // but when a piece can jump directly, a charge is just another way of jumping
+    expect(mustCapture([chain, charge])).toBe(true);
+  });
 });
 
 it('filters turns by prefix', () => {

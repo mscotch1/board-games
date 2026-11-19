@@ -177,10 +177,23 @@ def test_a_whole_game_of_legal_moves_never_gets_stuck():
     assert game.winner or game.legal_turns
 
 
-def test_stepping_into_range_gives_the_opponent_a_mandatory_charge():
-    # after (9,4)->(8,4) a black knight can canter over its own men and capture the man
+def test_stepping_into_range_gives_the_opponent_an_optional_charge():
+    # after (9,4)->(8,4) a black knight can canter over its own men and capture the man; but no piece can
+    # jump directly, and "a Knight is never obliged to make a Knight's Charge", so black may carry on as usual
     game = Game()
     game.play_turn(WHITE, [sq(9, 4), sq(8, 4)])
-    assert game.legal_turns and all(t.is_capture for t in game.legal_turns)
+    charges = [t for t in game.legal_turns if t.is_capture]
+    assert charges and all(t.jumped[0] is None for t in charges)
+    assert any(not t.is_capture for t in game.legal_turns)
+    game.play_turn(BLACK, [sq(6, 4), sq(7, 4)])  # an ordinary move is fine
+
+
+def test_a_player_who_can_jump_directly_cannot_play_a_plain_move():
+    game = Game()
+    game.board = [0] * game.variant.size
+    game.board[sq(9, 4)] = 1
+    game.board[sq(8, 4)] = 3
+    game.turn = WHITE
+    game._legal = __import__("rules").legal_turns(game.variant, game.board, WHITE)
     with pytest.raises(IllegalMove, match="must capture"):
-        game.play_turn(BLACK, [sq(6, 4), sq(7, 4)])
+        game.play_turn(WHITE, [sq(9, 4), sq(9, 5)])

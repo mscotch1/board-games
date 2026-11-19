@@ -54,9 +54,12 @@ export function capturedSoFar(legal, path) {
   return turn.jumped.slice(0, path.length - 1).filter((square) => square !== null);
 }
 
-/** Whether the player has to capture (every legal turn takes a piece). */
+/**
+ * Whether the player has to jump: some piece is next to an exposed enemy piece, so every legal turn
+ * takes a piece. (A knight's charge on its own is optional: it begins with a canter, not a jump.)
+ */
 export function mustCapture(legal) {
-  return legal.length > 0 && legal.every((turn) => turn.jumped.some((square) => square !== null));
+  return legal.some((turn) => turn.jumped[0] !== null) && legal.every((turn) => turn.jumped.some((s) => s !== null));
 }
 
 /** Whether `path` is a complete turn that can't be continued. */

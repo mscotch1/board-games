@@ -245,12 +245,22 @@ def test_a_trapped_piece_may_leave_instead_of_taking_a_capture_elsewhere():
 
 
 def test_a_trapped_knight_may_leave_with_a_charge():
-    # the knight cantering out over a friend and then jumping satisfies the duty to capture
+    # it may canter out over a friend and then jump, but nothing can jump directly, so that is optional
     pieces = {(12, 3): 2, (11, 3): 1, (9, 3): 3}
     turns = legal_turns(CAM, board_with(CAM, pieces), WHITE)
     charge = (square(CAM, 12, 3), square(CAM, 10, 3), square(CAM, 8, 3))
     assert charge in {t.moves for t in turns}
-    assert all(t.is_capture for t in turns)
+    assert any(not t.is_capture for t in turns)
+    assert all(t.moves[0] == square(CAM, 12, 3) for t in turns)  # the piece in the castle has to move
+
+
+def test_a_trapped_knight_that_can_jump_out_must_jump_and_may_charge_instead():
+    # an enemy man next to the castle piece: it must jump out ("must jump out, if possible, instead of
+    # plain-moving or cantering out"), and a charge out is the other way to satisfy the duty to capture
+    pieces = {(12, 3): 2, (11, 3): 1, (9, 3): 3, (11, 2): 3}
+    turns = legal_turns(CAM, board_with(CAM, pieces), WHITE)
+    assert turns and all(t.is_capture for t in turns)
+    assert (square(CAM, 12, 3), square(CAM, 10, 3), square(CAM, 8, 3)) in {t.moves for t in turns}
 
 
 def test_camelot_also_forces_a_piece_out_of_its_own_castle():
@@ -294,7 +304,10 @@ def test_legal_turns_are_consistent_on_random_boards(variant):
         for side in (WHITE, BLACK):
             turns = legal_turns(variant, board, side)
             assert len({t.moves for t in turns}) == len(turns)
-            assert len({t.is_capture for t in turns}) <= 1
+            if any(t.jumped[0] is not None for t in turns):
+                assert all(t.is_capture for t in turns)  # compelled to jump (a charge is one way to)
+            else:
+                assert all(t.jumped[0] is None for t in turns)  # a charge on its own is optional
 
             for turn in turns:
                 assert all(variant.mask[m] for m in turn.moves)

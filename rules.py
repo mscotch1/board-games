@@ -13,9 +13,14 @@ starts and every later square is where it lands:
 * knight's charge: a knight may canter and then jump. Men may only chain
   canters or chain jumps, never mix them.
 
-Capturing is mandatory, and a capturing turn must continue while its piece can
-still jump. A piece can't canter over the same friendly piece twice in a turn,
-and a turn made only of canters can't end where it began.
+Jumping is mandatory: a player whose piece is next to an exposed enemy piece has to
+jump (they may choose which jump, and a knight's charge is one way of making it), and a
+jump must continue while its piece can still jump. A knight is never obliged to charge,
+so when no piece can jump directly a charge is just another move. A knight that cantered
+next to a jumpable enemy piece has to jump it. A canter may go over the same friendly
+piece more than once, but a piece never lands on the same square twice in a turn (which
+keeps it from going round in circles and costs it no destination), so a turn made only of
+canters can't end where it began.
 
 Castles are the squares at each end of the board. A plain move or canter can't
 enter your own castle (a jump can). Each variant says how many pieces in the
@@ -192,12 +197,26 @@ def legal_turns(variant, board, player, castle_moves_used=0):
         if trapped:
             for start in trapped:
                 _explore(variant, board, player, start, is_knight(board[start]), castle_moves_left, captures, others)
-            return captures or others
+            return _choose(captures, others)
 
     for start, piece in enumerate(board):
         if piece and owner(piece) == player:
             _explore(variant, board, player, start, is_knight(piece), castle_moves_left, captures, others)
-    return captures or others
+    return _choose(captures, others)
+
+
+def _choose(captures, others):
+    """The turns on offer, given the capturing turns found and the rest.
+
+    The duty is to *jump*: it applies when some piece is next to an exposed enemy piece, which
+    is when a capturing turn begins with a jump. Then only capturing turns are legal (and a
+    knight's charge is one of them). A turn that begins with a canter, a knight's charge, is
+    optional ("a knight is never obliged to make a knight's charge"), so when nothing can jump
+    directly the charges are simply offered alongside every other turn.
+    """
+    if any(turn.jumped[0] is not None for turn in captures):
+        return captures
+    return others + captures
 
 
 _START, _CANTER, _JUMP = "start", "canter", "jump"
@@ -237,7 +256,9 @@ def _explore(variant, board, player, start, knight, castle_moves_left, captures,
             if phase == _JUMP:
                 if not jumps:
                     captures.append(turn)
-            elif pos != start:  # cantering round to where it began would be passing
+            elif pos != start and not (knight and jumps):
+                # (cantering round to where it began would be passing, and a knight whose canter
+                # brought it next to an enemy piece it can jump has to jump it)
                 others.append(turn)
 
         if entered_goal:
@@ -254,17 +275,17 @@ def _explore(variant, board, player, start, knight, castle_moves_left, captures,
                 if (
                     work[over] != 0
                     and owner(work[over]) == player
-                    and over not in cantered
+                    and landing not in cantered
                     and can_land_without_jumping(landing)
                 ):
-                    visit(landing, moves + [landing], jumped + [None], _CANTER, cantered | {over})
+                    visit(landing, moves + [landing], jumped + [None], _CANTER, cantered | {landing})
 
         if phase == _START:
             for step in variant.adjacent_squares(pos):
                 if can_land_without_jumping(step):
                     others.append(Turn((pos, step), (None,)))
 
-    visit(start, [start], [], _START, frozenset())
+    visit(start, [start], [], _START, frozenset({start}))
 
 
 def apply_turn(board, turn):

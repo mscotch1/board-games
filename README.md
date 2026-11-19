@@ -104,8 +104,9 @@ A new variant is a `Variant(...)` entry plus tests, and a choice in the lobby.
 
 Where the official text leaves room, these are the calls made:
 
-- A piece can't canter over the same friendly piece twice in one turn. The rules don't say, but without a
-  limit a canter could loop forever.
+- A canter may go over the same friendly piece more than once (the rules only forbid beginning and ending on
+  the same square), but a piece never lands on the same square twice in one turn, so it can't circle forever.
+  Every square reachable the long way round is reachable without repeating one, so no destination is lost.
 - "Twice during the game" for castle moves is counted per player, not per piece.
 - If a player has no legal move and the other has fewer than two pieces, the game is drawn (the rules give
   neither a win nor a draw for that case).

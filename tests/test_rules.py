@@ -171,11 +171,21 @@ def test_canters_chain_and_can_stop_after_any_of_them():
     assert path((12, 4), (10, 4), (8, 4)) in turns
 
 
-def test_cannot_canter_over_the_same_friend_twice():
+def test_a_canter_cannot_come_back_to_where_it_began():
     board = board_with({(12, 4): 1, (11, 4): 1})
     turns = paths(legal_turns(board, WHITE))
     assert path((12, 4), (10, 4)) in turns
     assert path((12, 4), (10, 4), (12, 4)) not in turns
+
+
+def test_a_canter_may_go_over_the_same_friend_twice():
+    # The Federation only forbids beginning and ending a canter on the same square. Here the man on (6,2) goes
+    # over the friend on (5,3) to (4,4), over (4,3) to (4,2), then over the friend on (5,3) again to (6,4):
+    # a square that cannot be reached any other way.
+    board = board_with({(6, 2): 1, (5, 3): 1, (4, 3): 1})
+    turns = paths(legal_turns(board, WHITE))
+    assert path((6, 2), (4, 4), (4, 2), (6, 4)) in turns
+    assert all(p[-1] != sq(6, 4) or len(p) == 4 for p in turns if p[0] == sq(6, 2))
 
 
 def test_cannot_canter_over_a_friend_onto_an_occupied_square():
@@ -208,7 +218,56 @@ def test_a_knight_may_chain_canters_then_jumps():
     board = board_with({(14, 4): 2, (13, 4): 1, (11, 4): 1, (9, 4): 3, (7, 4): 3})
     turns = paths(legal_turns(board, WHITE))
     assert path((14, 4), (12, 4), (10, 4), (8, 4), (6, 4)) in turns
-    assert len(turns) == 1  # the capture is mandatory and the chain must finish
+    # (the chain of jumps must finish, so nothing stops after the first jump)
+    assert path((14, 4), (12, 4), (10, 4), (8, 4)) not in turns
+
+
+# --- the duty to jump, and the knight's charge (World Camelot Federation rules) ---
+
+
+def test_a_knight_is_never_obliged_to_charge():
+    # "A Knight is never obliged to make a Knight's Charge": no piece can jump directly here, so the charge
+    # is only one of the turns on offer, alongside plain moves and canters
+    board = board_with({(12, 4): 2, (11, 4): 1, (9, 4): 3})
+    turns = {t.moves: t for t in legal_turns(board, WHITE)}
+    charge = path((12, 4), (10, 4), (8, 4))
+    assert charge in turns and turns[charge].is_capture
+    assert path((12, 4), (12, 5)) in turns  # a plain move is allowed
+    assert path((11, 4), (10, 4)) in turns  # and so is moving another piece
+
+
+def test_a_direct_jump_must_be_made_and_a_charge_is_one_way_to_make_it():
+    # the man on (9,1) can jump the enemy next to it, so the duty to jump applies: only captures are legal,
+    # and "when compelled to jump, a player may, if he can, capture by a Knight's Charge instead"
+    board = board_with({(9, 1): 1, (8, 1): 3, (12, 4): 2, (11, 4): 1, (9, 4): 3})
+    turns = legal_turns(board, WHITE)
+    assert all(t.is_capture for t in turns)
+    assert path((9, 1), (7, 1)) in paths(turns)
+    assert path((12, 4), (10, 4), (8, 4)) in paths(turns)
+
+
+def test_a_knight_whose_canter_lands_next_to_a_jumpable_enemy_must_jump():
+    # "If the Canter of a Knight brings it next to an enemy piece that can be jumped, it must do so"
+    board = board_with({(12, 4): 2, (11, 4): 1, (9, 4): 3})
+    turns = paths(legal_turns(board, WHITE))
+    assert path((12, 4), (10, 4)) not in turns  # it would stop next to the enemy man
+    assert path((12, 4), (10, 4), (8, 4)) in turns
+
+
+def test_a_man_may_canter_to_a_square_next_to_an_enemy_piece():
+    # only a knight has to jump after cantering; a man's turn simply ends there
+    board = board_with({(12, 4): 1, (11, 4): 1, (9, 4): 3})
+    assert path((12, 4), (10, 4)) in paths(legal_turns(board, WHITE))
+
+
+def test_a_knight_may_canter_on_instead_when_it_captures_elsewhere_later_in_the_same_move():
+    # "...unless by a different route later in that same move it captures one or more enemy pieces elsewhere"
+    board = board_with({(12, 4): 2, (11, 4): 1, (10, 5): 1, (9, 4): 3, (9, 6): 3})
+    turns = paths(legal_turns(board, WHITE))
+    assert path((12, 4), (10, 4), (8, 4)) in turns  # jump the man beside the first landing
+    assert path((12, 4), (10, 4), (10, 6), (8, 6)) in turns  # or canter on and jump the other one
+    assert path((12, 4), (10, 4)) not in turns  # but not stop beside either of them
+    assert path((12, 4), (10, 4), (10, 6)) not in turns
 
 
 def test_nothing_can_follow_a_jump_but_another_jump():
@@ -316,7 +375,13 @@ def test_legal_turns_are_consistent_on_random_boards():
         for side in (WHITE, BLACK):
             turns = legal_turns(board, side)
             assert len({t.moves for t in turns}) == len(turns)  # no duplicates
-            assert len({t.is_capture for t in turns}) <= 1  # captures exclude everything else
+            starts_with_a_jump = [t for t in turns if t.jumped[0] is not None]
+            if starts_with_a_jump:
+                # a piece is next to an exposed enemy piece: jumping is compulsory (a charge is one way)
+                assert all(t.is_capture for t in turns)
+            else:
+                # nothing can jump directly, so a charge is only optional: every capture is a charge
+                assert all(t.jumped[0] is None for t in turns)
 
             for turn in turns:
                 assert rules.owner(board[turn.moves[0]]) == side
