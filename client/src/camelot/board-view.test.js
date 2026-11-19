@@ -101,3 +101,51 @@ describe('board markup', () => {
     expect(markup).toContain('opp-hover');
   });
 });
+
+describe('board decoration', () => {
+  const mask = new Array(192).fill(0);
+  [5, 6, 17, 100, 185, 186].forEach((i) => (mask[i] = 1));
+
+  const view = {
+    rows: 16,
+    cols: 12,
+    mask,
+    board: new Array(192).fill(0),
+    side: 'white',
+    castles: { top: [5, 6], bottom: [185, 186] },
+    lastTurn: null,
+    clickable: new Set(),
+    movable: new Set(),
+    candidates: new Map(),
+    path: [],
+    captured: [],
+    opponentPath: [],
+    opponentHover: null,
+  };
+
+  const count = (markup, text) => markup.split(text).length - 1;
+
+  it('frames every square on the board, and only those', () => {
+    const markup = boardMarkup(view);
+    expect(count(markup, 'class="frame-outer"')).toBe(6);
+    expect(count(markup, 'class="frame-inner"')).toBe(6);
+  });
+
+  it('draws the frame underneath the squares', () => {
+    const markup = boardMarkup(view);
+    expect(markup.indexOf('frame-outer')).toBeLessThan(markup.indexOf('frame-inner'));
+    expect(markup.lastIndexOf('frame-inner')).toBeLessThan(markup.indexOf('class="sq '));
+  });
+
+  it('flies each castle in the colours of the side that starts beside it', () => {
+    const markup = boardMarkup(view);
+    expect(count(markup, 'castle-icon black')).toBe(2);
+    expect(count(markup, 'castle-icon white')).toBe(2);
+  });
+
+  it('keeps the castle colours with the board when it is turned for black', () => {
+    const markup = boardMarkup({ ...view, side: 'black' });
+    expect(count(markup, 'castle-icon black')).toBe(2);
+    expect(count(markup, 'castle-icon white')).toBe(2);
+  });
+});

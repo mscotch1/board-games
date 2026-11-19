@@ -1,0 +1,48 @@
+/* How the pieces, shields and crest look. Shared by the game and the landing page. */
+
+:root {
+  --white-fill: #f8f2df;
+  --white-edge: #3b3322;
+  --black-fill: #2d2a37;
+  --black-edge: #0a0910;
+}
+
+/* shields: used for the sides and the crest */
+
+.shield {
+  display: inline-block;
+  flex: none;
+  width: 1.6rem;
+  height: 1.9rem;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35));
+}
+
+.shield-fill.white { fill: var(--white-fill); }
+.shield-fill.black { fill: var(--black-fill); }
+.shield-trim { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linejoin: round; }
+.crest-fill { fill: var(--royal); }
+.crest-chief { fill: var(--crimson); }
+
+.crest {
+  flex: none;
+  width: 4.2rem;
+  height: 5rem;
+  filter: drop-shadow(0 3px 3px rgb(0 0 0 / 0.4));
+}
+
+.piece.white { --fill: var(--white-fill); --edge: var(--white-edge); --shine: #fff; --rim: #cfc29b; --mane: #d8aa45; }
+.piece.black { --fill: var(--black-fill); --edge: var(--black-edge); --shine: #77718f; --rim: #4a465a; --mane: #7f7aa8; }
+
+.piece-body {
+  fill: var(--fill);
+  stroke: var(--edge);
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+}
+
+.piece-mane { fill: var(--mane); stroke: var(--edge); stroke-width: 2.5; stroke-linejoin: round; }
+.piece-shade { fill: rgb(0 0 0 / 0.3); }
+.piece-shine { fill: var(--shine); opacity: 0.55; }
+.piece-rim { fill: none; stroke: var(--rim); stroke-width: 2.5; stroke-linecap: round; }
+.piece-eye { fill: var(--edge); }
+

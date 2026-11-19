@@ -5,10 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Monka Games</title>
     <link rel="icon" href="/favicon.ico" />
+    <script>
+      // set the theme before the first paint (theme.js keeps it up to date)
+      try {
+        var root = document.documentElement;
+        var saved = localStorage.getItem('theme');
+        if (saved !== 'light' && saved !== 'dark') {
+          saved = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        } else {
+          root.dataset.theme = saved;
+        }
+        root.dataset.effective = saved;
+      } catch (e) {}
+    </script>
     <link rel="stylesheet" href="/src/landing.css" />
+    <script type="module" src="/src/landing.js"></script>
   </head>
   <body>
+    <div class="bunting" aria-hidden="true"></div>
+    <div class="skyline" aria-hidden="true"></div>
+
+    <button class="icon-btn theme-toggle landing-toggle" type="button" aria-label="Switch theme">
+      <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" /></svg>
+      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" /></svg>
+    </button>
+
     <main class="landing">
+      <svg class="crest" viewBox="0 0 100 120" aria-hidden="true"><use href="#crest" /></svg>
       <h1 class="display">Monka Games</h1>
       <p class="muted">Board games to play with a friend, right in the browser.</p>
 

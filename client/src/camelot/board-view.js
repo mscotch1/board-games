@@ -6,29 +6,10 @@
 // rotated half a turn when it is drawn.
 
 const CELL = 100;
-const MARGIN = 60; // room for the file and rank labels around the board
+const MARGIN = 74; // room for the frame and the file and rank labels around the board
+const FRAME = 18; // how far the gold frame reaches past the squares
 
 const FILES = 'abcdefghijklmnopqrstuvwxyz';
-
-const PIECE_DEFS = `
-  <symbol id="piece-man" viewBox="0 0 100 100">
-    <ellipse class="piece-shade" cx="50" cy="86" rx="27" ry="7" />
-    <path class="piece-body" d="M26 84 C26 68 35 60 41 53 H59 C65 60 74 68 74 84 Z" />
-    <rect class="piece-body" x="34" y="45" width="32" height="9" rx="4.5" />
-    <circle class="piece-body" cx="50" cy="31" r="15" />
-    <circle class="piece-shine" cx="45" cy="26" r="4.5" />
-  </symbol>
-  <symbol id="piece-knight" viewBox="0 0 100 100">
-    <ellipse class="piece-shade" cx="50" cy="87" rx="29" ry="7" />
-    <path class="piece-body" d="M27 85 C27 70 33 58 43 49 L34 41 L39 24 L50 31 C55 20 63 15 72 18 C68 23 70 29 73 37 C78 50 67 60 66 70 C66 76 68 81 73 85 Z" />
-    <path class="piece-rim" d="M52 29 C50 40 47 49 40 58" />
-    <circle class="piece-eye" cx="59" cy="33" r="3" />
-    <circle class="piece-shine" cx="63" cy="44" r="4" />
-  </symbol>
-  <symbol id="castle" viewBox="0 0 100 100">
-    <path d="M18 80 V38 H28 V28 H38 V38 H44 V28 H56 V38 H62 V28 H72 V38 H82 V80 Z M44 80 V62 A6 6 0 0 1 56 62 V80 Z" fill-rule="evenodd" />
-  </symbol>
-`;
 
 /** Where square `index` is drawn, in cells from the top left, for the given side. */
 export function displayCell(index, { rows, cols }, side) {
@@ -64,6 +45,8 @@ export function boardMarkup(view) {
   };
 
   const castleSquares = new Set([...view.castles.top, ...view.castles.bottom]);
+  const frame = [];
+  const inner = [];
   const squares = [];
   const highlights = [];
   const markers = [];
@@ -87,10 +70,21 @@ export function boardMarkup(view) {
     const { row, col } = displayCell(index, geometry, side);
     const shade = castleSquares.has(index) ? 'castle' : (row + col) % 2 === 0 ? 'light' : 'dark';
     const clickable = view.clickable.has(index) ? ' clickable' : '';
+    // the frame is every square grown a little, which outlines the whole board
+    frame.push(
+      `<rect class="frame-outer" x="${x - FRAME}" y="${y - FRAME}" width="${CELL + 2 * FRAME}" height="${CELL + 2 * FRAME}" rx="14" />`,
+    );
+    inner.push(
+      `<rect class="frame-inner" x="${x - FRAME / 2}" y="${y - FRAME / 2}" width="${CELL + FRAME}" height="${CELL + FRAME}" rx="8" />`,
+    );
     squares.push(rect(`sq ${shade}${clickable}`, index, `data-index="${index}"`));
 
     if (castleSquares.has(index)) {
-      squares.push(`<use class="castle-icon" href="#castle" x="${x}" y="${y}" width="${CELL}" height="${CELL}" />`);
+      // each castle flies the colours of the side that starts beside it
+      const owner = view.castles.top.includes(index) ? 'black' : 'white';
+      squares.push(
+        `<use class="castle-icon ${owner}" href="#castle" x="${x}" y="${y}" width="${CELL}" height="${CELL}" />`,
+      );
     }
     if (lastSquares.has(index)) {
       highlights.push(rect('hl last', index));
@@ -167,7 +161,8 @@ export function boardMarkup(view) {
   }
 
   return [
-    `<defs>${PIECE_DEFS}</defs>`,
+    frame.join(''),
+    inner.join(''),
     squares.join(''),
     highlights.join(''),
     pieces.join(''),
@@ -182,12 +177,12 @@ function labels({ rows, cols }, side) {
   for (let col = 0; col < cols; col++) {
     const { col: shown } = displayCell(col, { rows, cols }, side);
     const x = shown * CELL + CELL / 2;
-    out.push(`<text x="${x}" y="${rows * CELL + 34}">${FILES[col]}</text>`);
+    out.push(`<text x="${x}" y="${rows * CELL + 48}">${FILES[col]}</text>`);
   }
   for (let row = 0; row < rows; row++) {
     const { row: shown } = displayCell(row * cols, { rows, cols }, side);
     const y = shown * CELL + CELL / 2;
-    out.push(`<text x="-34" y="${y}">${rows - row}</text>`);
+    out.push(`<text x="-48" y="${y}">${rows - row}</text>`);
   }
   return out.join('');
 }

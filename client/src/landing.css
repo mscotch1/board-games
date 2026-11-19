@@ -1,19 +1,29 @@
 @import './shared/theme.css';
+@import './camelot/art.css';
 
 .landing {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
   max-width: 44rem;
   margin: 0 auto;
-  padding: 4rem 1rem;
+  padding: 5.5rem 1rem 11rem;
   text-align: center;
 }
 
 .landing h1 {
   font-size: clamp(2.5rem, 8vw, 4rem);
   line-height: 1.1;
+}
+
+.landing-toggle {
+  position: fixed;
+  top: 3.4rem;
+  right: 1rem;
+  z-index: 2;
 }
 
 .games {
@@ -32,14 +42,13 @@
   gap: 0.75rem;
   color: inherit;
   text-decoration: none;
-  transition: border-color 0.15s, transform 0.15s;
+  transition: transform 0.15s;
 }
 
 .game-card:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
+  transform: translateY(-3px) rotate(-0.4deg);
 }
 
 .game-card h2 {
-  font-size: 2rem;
+  font-size: 2.2rem;
 }

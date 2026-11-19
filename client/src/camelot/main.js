@@ -1,10 +1,15 @@
 import { connect } from '../shared/connection.js';
+import { initThemeToggle } from '../shared/theme.js';
 import { createBoardView } from './board-view.js';
 import './camelot.css';
 import { rematchCode } from './rematch.js';
+import { installSprite } from './sprite.js';
 import { exactTurn, isFinished, mustCapture, nextSquares, startSquares, capturedSoFar } from './selection.js';
 
 const $ = (id) => document.getElementById(id);
+
+installSprite();
+document.querySelectorAll('.theme-toggle').forEach((button) => initThemeToggle(button));
 
 const SIDE_NAMES = { white: 'White', black: 'Black' };
 const otherSide = (side) => (side === 'white' ? 'black' : 'white');
@@ -253,7 +258,7 @@ function renderPlayers() {
 
   const row = (who, owner) => `
     <div class="player${state.turn === owner && !state.winner ? ' active' : ''}">
-      <span class="swatch ${owner}"></span>
+      <svg class="shield" viewBox="0 0 100 120" aria-hidden="true"><use href="#shield-${owner}" /></svg>
       <span class="who"><strong>${who}</strong><small>${SIDE_NAMES[owner]}</small></span>
       <span class="count" title="Pieces left">${counts[owner]}</span>
     </div>`;
@@ -295,12 +300,12 @@ function showResult() {
   const won = state.winner === side;
 
   const reasons = {
-    castle: won ? 'You occupied both squares of the enemy castle.' : 'Your opponent occupied both squares of the castle.',
-    capture: won ? 'You captured every enemy piece.' : 'Your opponent captured every one of your pieces.',
-    blocked: won ? 'Your opponent has no legal move.' : 'You have no legal move.',
+    castle: won ? 'Huzzah! Both towers of the enemy castle fly your colours.' : 'Your opponent has taken both towers of the castle.',
+    capture: won ? 'Huzzah! Not a single enemy piece is left standing.' : 'Not a single one of your pieces is left standing.',
+    blocked: won ? 'Huzzah! Your opponent is hemmed in with no move to make.' : 'You are hemmed in with no move to make.',
   };
 
-  $('over-title').textContent = won ? 'Victory!' : 'Defeat';
+  $('over-title').textContent = won ? 'Victory!' : 'Alas, defeat';
   $('over-text').textContent = reasons[state.winReason] ?? '';
 
   // the next game swaps colours: whoever clicks first creates it and asks for the other side

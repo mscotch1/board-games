@@ -5,14 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Camelot | Monka Games</title>
     <link rel="icon" href="/favicon.ico" />
+    <script>
+      // set the theme before the first paint (theme.js keeps it up to date)
+      try {
+        var root = document.documentElement;
+        var saved = localStorage.getItem('theme');
+        if (saved !== 'light' && saved !== 'dark') {
+          saved = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        } else {
+          root.dataset.theme = saved;
+        }
+        root.dataset.effective = saved;
+      } catch (e) {}
+    </script>
     <script type="module" src="/src/camelot/main.js"></script>
   </head>
   <body>
     <div id="lobby" class="lobby">
+      <div class="bunting" aria-hidden="true"></div>
+      <div class="skyline" aria-hidden="true"></div>
+
       <div class="card lobby-card stack">
-        <header class="stack tight">
-          <h1 class="display">Camelot</h1>
-          <p class="muted">A game of knights and men for two players.</p>
+        <button class="icon-btn theme-toggle" type="button" aria-label="Switch theme">
+          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" /></svg>
+          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" /></svg>
+        </button>
+
+        <header class="lobby-head">
+          <svg class="crest" viewBox="0 0 100 120" aria-hidden="true"><use href="#crest" /></svg>
+          <div class="stack tight">
+            <h1 class="display">Camelot</h1>
+            <p class="muted">A game of knights and men for two players.</p>
+          </div>
         </header>
 
         <section id="menu" class="stack">
@@ -21,18 +45,18 @@
               <legend>Play as</legend>
               <label>
                 <input type="radio" name="side" value="white" />
-                <span class="swatch white"></span>
+                <svg class="shield" viewBox="0 0 100 120" aria-hidden="true"><use href="#shield-white" /></svg>
                 White
                 <small>moves first</small>
               </label>
               <label>
                 <input type="radio" name="side" value="black" />
-                <span class="swatch black"></span>
+                <svg class="shield" viewBox="0 0 100 120" aria-hidden="true"><use href="#shield-black" /></svg>
                 Black
               </label>
               <label>
                 <input type="radio" name="side" value="random" checked />
-                <span class="swatch random"></span>
+                <svg class="shield" viewBox="0 0 100 120" aria-hidden="true"><use href="#shield-random" /></svg>
                 Random
               </label>
             </fieldset>
@@ -54,7 +78,7 @@
             <button id="copy" class="btn" type="button">Copy</button>
           </div>
           <p class="muted">Or give them the code <code id="game-code"></code></p>
-          <p class="waiting muted">Waiting for an opponent</p>
+          <p class="waiting muted">Waiting for a challenger</p>
           <button id="cancel" class="btn ghost" type="button">Cancel</button>
         </section>
       </div>
@@ -62,8 +86,16 @@
 
     <div id="game" class="game" hidden>
       <header class="topbar">
-        <a class="brand display" href="/games/camelot/">Camelot</a>
+        <a class="brand display" href="/games/camelot/">
+          <svg class="crest" viewBox="0 0 100 120" aria-hidden="true"><use href="#crest" /></svg>
+          Camelot
+        </a>
         <div id="status" class="status" role="status" aria-live="polite"></div>
+        <button class="icon-btn theme-toggle" type="button" aria-label="Switch theme">
+          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" /></svg>
+          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" /></svg>
+        </button>
+
       </header>
 
       <main class="layout">
