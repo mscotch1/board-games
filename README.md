@@ -54,9 +54,20 @@ differ in thinking time and in how often a weaker, near-best move is chosen; har
 should be beatable by a decent casual player. It accepts a draw only when it is clearly losing. Computer games are saved
 and resumable like any other, and cost nothing when it isn't the computer's turn.
 
-The search is CPU work in the one server process, so at most `BOT_SEARCHES` (default 2) computer moves are worked out at
-once and the rest wait. The evaluation weights (`DEFAULT_WEIGHTS` in `ai.py`) were set by hand; `python selfplay.py speed`
-and `python selfplay.py match camelot` let you measure the search and watch it play itself.
+The search is written twice: in C (`native/aisearch.c`, loaded through `native_search.py` with the standard library's
+`ctypes`, so there is nothing extra to install) and in Python (`ai.py`). The C version is about 70-100 times faster, which
+is what lets hard look five or six moves ahead in Camelot where Python manages two or three. The Docker image builds it
+(in a throwaway stage, so the final image has no compiler); for a local checkout run `make -C native`. Without the
+library the server falls back to the Python search by itself, and `/healthz` reports which one is in use
+(`"computerSearch": "native"` or `"python"`). `AI_NATIVE=0` forces the Python one. Two copies of the rules would be a
+risk, so the board's geometry comes from `variants.py`, and `tests/test_native.py` checks the C code against `rules.py`
+(the legal turns of thousands of random positions) and against the Python search (the same scores at the same depth).
+CI builds the library and fails if those tests are skipped.
+
+The C search releases Python's lock while it thinks, so searches really run side by side and the web server stays
+responsive. At most `BOT_SEARCHES` (default 2) computer moves are worked out at once and the rest wait; set it to the
+number of cores you can spare. The evaluation weights (`DEFAULT_WEIGHTS` in `ai.py`) were set by hand;
+`python selfplay.py speed` and `python selfplay.py match camelot` let you measure the search and watch it play itself.
 
 ## Leaving and coming back
 

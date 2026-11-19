@@ -480,6 +480,7 @@ def healthz():
         return no_store(jsonify({"status": "error", **BUILD})), 503
 
     body = {"status": "ok", **BUILD, "uptimeSeconds": int(time.time() - STARTED_AT), **stats}
+    body["computerSearch"] = "native" if ai.searcher_class() is not ai.Searcher else "python"
     if backup_scheduler is not None:
         last = backup_scheduler.last_backup_at
         body["lastBackup"] = datetime.fromtimestamp(last, timezone.utc).isoformat() if last else None

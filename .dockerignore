@@ -8,3 +8,8 @@ tests
 client/node_modules
 client/dist
 data
+native/*.so
+native/*.dll
+native/*.lib
+native/*.exp
+native/*.dylib

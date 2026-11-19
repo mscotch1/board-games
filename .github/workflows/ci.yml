@@ -17,7 +17,11 @@ jobs:
           cache: pip
           cache-dependency-path: requirements*.txt
       - run: pip install -r requirements-dev.txt
+      - name: Build the C search library (the tests compare it with the Python rules)
+        run: make -C native
       - run: pytest
+        env:
+          REQUIRE_NATIVE: "1"
 
       # requirements.txt pins every package the server uses, and is generated from requirements.in;
       # this fails if someone edited one without regenerating the other
@@ -68,6 +72,7 @@ jobs:
           curl -fsS http://localhost:5000/version
           curl -fsS http://localhost:5000/games/camelot/rules/ | grep -q 'How to play'
           curl -fsSI http://localhost:5000/ | grep -i '^content-security-policy'
+          curl -fsS http://localhost:5000/healthz | grep '"computerSearch":"native"'
           test "$(docker exec board-games id -u)" = "10001"
           docker exec board-games sh -c 'touch /data/writable-check && rm /data/writable-check'
       - name: Show the container's log if something failed

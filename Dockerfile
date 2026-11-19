@@ -19,6 +19,16 @@ ARG SITE_URL=
 ARG REPO_URL
 RUN npm run build
 
+# The computer player's search, in C. Only the compiled library is copied on, so the final image
+# has no compiler; without the library the server still works, with a slower search in Python.
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS native
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gcc libc6-dev make \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /native
+COPY native/Makefile native/aisearch.c ./
+RUN make
+
 # The server, with the built client
 FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 WORKDIR /app
@@ -28,6 +38,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY *.py ./
+COPY --from=native /native/libaisearch.so ./native/libaisearch.so
 COPY --from=client /client/dist ./client/dist
 
 # The same build details, for the /version and /healthz endpoints
@@ -57,4 +68,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # Games are held in this process (and saved to DATA_DIR), so this must stay a single worker.
 # Concurrency comes from threads; simple-websocket handles websocket upgrades.
 # (gunicorn's heartbeat files go in /dev/shm, which is memory-backed and needs no extra permissions.)
-CMD ["gunicorn", "--workers", "1", "--threads", "100", "--worker-tmp-dir", "/dev/shm", "--bind", "0.0.0.0:5000", "app:app"]
+# (The control socket is an admin interface this app doesn't use; it would want a home directory the user hasn't got.)
+CMD ["gunicorn", "--workers", "1", "--threads", "100", "--worker-tmp-dir", "/dev/shm", "--no-control-socket", "--bind", "0.0.0.0:5000", "app:app"]

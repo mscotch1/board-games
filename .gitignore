@@ -5,3 +5,10 @@ node_modules/
 client/dist/
 data/
 client/public/third-party-licenses.txt
+
+# the compiled C search library (built by native/Makefile)
+native/*.so
+native/*.dll
+native/*.lib
+native/*.exp
+native/*.dylib
