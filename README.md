@@ -102,7 +102,7 @@ npm run build          # writes client/dist, which app.py serves
 
 ## Running with Docker
 
-Pushing a `v*` tag runs the tests and publishes `ghcr.io/mscotch1/board-games` with the tags
+Pushing a version tag (`v1.2.3`) runs the tests and publishes `ghcr.io/mscotch1/board-games` with the tags
 `1.2.3`, `1.2` and `latest`. With docker compose:
 
 ```yaml
@@ -228,6 +228,9 @@ commit and the time (the `APP_VERSION`, `APP_COMMIT` and `APP_BUILT` build argum
   players are connected. It returns 503 if the saved games can't be read, and the image's `HEALTHCHECK` uses it,
   so `docker ps` shows `healthy` or `unhealthy`.
 
+A tag with a suffix (`v1.1.0-rc.1`) is a pre-release: it gets its own image tag and a release marked as a pre-release,
+and doesn't move `latest`. The workflow refuses a tag that isn't a version, or that isn't on `main`.
+
 A build outside the release workflow (`npm run build`, a local `docker build`) says `dev build`, or uses
 `git describe` when there is a repository.
 
@@ -239,3 +242,31 @@ Actions, Variables) with the public address, such as `https://games.example.com`
 The base images in the Dockerfile are pinned by digest, so a build is repeatable and a change in an upstream image can't
 slip in unnoticed. Dependabot opens weekly pull requests for the Python and npm dependencies, the GitHub Actions and those
 image digests; the CI checks run on each, so most updates are a matter of reading the summary and merging.
+
+The Python dependencies are listed by hand in `requirements.in` and pinned, with everything they pull in, in
+`requirements.txt`. To change them, edit `requirements.in` and regenerate (CI fails if the two disagree):
+
+```sh
+uv pip compile requirements.in --python-platform linux --python-version 3.12 -o requirements.txt
+```
+
+A weekly *Security audit* workflow checks both sets of dependencies against the public vulnerability databases.
+
+## First deployment checklist
+
+1. Add the repository variable `SITE_URL` (see above), then push the tag.
+2. After the first release, make the GHCR package public (or `docker login ghcr.io` on the server).
+3. Mount a volume on `/data`; for a bind mount, `chown 10001` the directory. Point `BACKUP_DIR` at a different disk.
+4. Behind Cloudflare only: set `CLIENT_IP_HEADER=CF-Connecting-IP`. Once HTTPS works, set `HSTS_MAX_AGE`.
+5. Check `/version` shows the tag you expect and `/healthz` says `ok`.
+
+## Contributing, security and license
+
+See `CONTRIBUTING.md`, and `SECURITY.md` for reporting a vulnerability privately.
+
+Copyright (C) 2026 Michael Scott. This program is free software under the
+[GNU Affero General Public License, version 3 or later](LICENSE). Anyone may use, change and share it, including
+for money, but if they run a modified version for other people over a network they must offer those users the source
+under the same license. (The AGPL discourages closed resale; it does not forbid selling. Only a non-commercial
+license would, and that wouldn't be free software.) Third-party notices for the code shipped to browsers are in
+`/third-party-licenses.txt` on the site.
