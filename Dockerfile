@@ -1,17 +1,22 @@
-# Use an official Python runtime as a base image
-FROM python:3.10-slim
+# Build the client with Vite
+FROM node:24-slim AS client
+WORKDIR /client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci
+COPY client/ ./
+RUN npm run build
 
-# Set the working directory in the container
+# The server, with the built client
+FROM python:3.12-slim
 WORKDIR /app
 
 # Install dependencies first so they are cached between code changes
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application files
-COPY . .
+COPY app.py game.py lobby.py rules.py ./
+COPY --from=client /client/dist ./client/dist
 
-# Expose the port the server listens on
 EXPOSE 5000
 
 # Game state lives in process memory, so this must stay a single worker.
