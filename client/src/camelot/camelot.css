@@ -344,6 +344,28 @@
   display: none;
 }
 
+.draw-row .btn {
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.draw-offer {
+  padding: 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.draw-offer p {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.draw-offer .btn {
+  flex: 1;
+}
+
 #end-turn.ready:not(:disabled) {
   animation: nudge 1.6s ease-in-out infinite;
 }

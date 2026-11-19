@@ -245,9 +245,10 @@ def test_a_piece_in_the_enemy_castle_cannot_step_out():
     assert turns == {path((0, 5), (0, 6))}
 
 
-def test_a_piece_in_the_enemy_castle_can_leave_by_jumping():
+def test_a_piece_in_the_enemy_castle_cannot_leave_even_by_jumping():
+    # (2,5) is empty beyond the black man, but the castle piece may not use it
     board = board_with({(0, 5): 1, (1, 5): 3})
-    assert paths(legal_turns(board, WHITE)) == {path((0, 5), (2, 5))}
+    assert paths(legal_turns(board, WHITE)) == {path((0, 5), (0, 6))}
 
 
 def test_a_piece_in_the_enemy_castle_cannot_canter_out():
@@ -285,9 +286,14 @@ def test_half_filled_or_contested_castle_is_not_a_win():
     assert find_winner(board_with({(0, 5): 1, (0, 6): 3, (9, 4): 1, (5, 3): 3})) == (None, None)
 
 
-def test_capturing_every_piece_wins():
-    assert find_winner(board_with({(9, 4): 1})) == (WHITE, "capture")
-    assert find_winner(board_with({(5, 4): 4})) == (BLACK, "capture")
+def test_capturing_every_piece_wins_with_two_pieces_left():
+    assert find_winner(board_with({(9, 4): 1, (9, 5): 2})) == (WHITE, "capture")
+    assert find_winner(board_with({(5, 4): 4, (5, 5): 3})) == (BLACK, "capture")
+
+
+def test_capturing_every_piece_is_not_a_win_with_one_piece_left():
+    assert find_winner(board_with({(9, 4): 1})) == (None, None)
+    assert find_winner(board_with({(5, 4): 4})) == (None, None)
 
 
 # --- properties -------------------------------------------------------------
@@ -325,8 +331,9 @@ def test_legal_turns_are_consistent_on_random_boards():
                 assert after[turn.moves[-1]] == board[turn.moves[0]]
                 assert sum(1 for v in board if v) - sum(1 for v in after if v) == len(jumped)
 
-                if turn.is_capture:
-                    # a capture must be played out: nothing more can be jumped from where it ends
+                if turn.is_capture and turn.moves[-1] not in V.goal_castle[side]:
+                    # a capture must be played out (unless it ended in the enemy castle, which
+                    # ends the turn): nothing more can be jumped from where it ends
                     end = turn.moves[-1]
                     for landing in V.jumpable_squares(end):
                         over = (end + landing) // 2

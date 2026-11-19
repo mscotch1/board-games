@@ -7,21 +7,28 @@ move); the client is a small Vite-built page that draws the board and sends move
 
 ## Camelot rules
 
-Each side has 10 men and 4 knights. White moves first; the creator of a game picks
+Camelot follows the [World Camelot Federation's official rules](http://www.worldcamelotfederation.com/Camelot_Rules.htm).
+Each side has 10 men and 4 knights on a 160-square board. White moves first; the creator of a game picks
 a side (or leaves it random), and *Play again* swaps colours.
 
 - **Plain move:** one step to an adjacent empty square.
-- **Canter:** jump over an adjacent friendly piece. Cantered pieces stay on the board, and
-  a piece can't canter over the same friend twice in a turn.
-- **Jump:** jump over an adjacent enemy piece to capture it. **Capturing is mandatory**, and a
-  chain of jumps must be completed while the piece can still jump. If several captures are
-  possible you may choose between them.
-- **Knight's charge:** a knight may canter (any number of times) and then jump. Men can chain
-  canters or chain jumps, but not mix them.
-- **Castles:** the two squares at each end. You can't make a plain move or canter into your own
-  castle (a jump may land there), and a piece inside the enemy castle can only leave it by jumping.
-- **Winning:** occupy both squares of the enemy castle, capture every enemy piece, or leave your
-  opponent with no legal move.
+- **Canter:** jump over an adjacent friendly piece, which stays on the board. A canter can't begin and
+  end on the same square.
+- **Jump:** jump over an adjacent enemy piece to capture it. **Capturing is mandatory**, and a chain of
+  jumps must be completed while the piece can still jump (except as noted for castles). If several captures
+  are possible you may choose between them.
+- **Knight's charge:** a knight may canter (any number of times) and then jump. Men can chain canters or
+  chain jumps, but not mix them.
+- **Your own castle:** you can't plain-move or canter into it, but you can jump into it. A piece that jumps
+  in and can't jump on must leave on your next turn, ahead of any other move, and must jump out if it can.
+- **The enemy castle:** a piece that enters it ends its turn there and can never come out. Each player may
+  move a piece from one castle square to the other twice in the whole game.
+- **Winning:** move two pieces into the enemy castle; or capture every enemy piece while keeping at least
+  two of your own; or leave your opponent with no legal move while you have at least two pieces.
+- **Draws:** by agreement (offer and accept in the game panel); automatically when both sides are down to
+  one piece or fewer; and either player can claim one when the same position has come up for the third
+  time with the same player to move, or when fifty moves each have passed with no capture and no piece
+  reaching a castle.
 
 ## Cam rules
 
@@ -42,14 +49,18 @@ Boards, starting positions and the few rule options live in `variants.py`; the r
 takes a `Variant` and nothing else is board-specific, so the client draws whatever board the server sends.
 A new variant is a `Variant(...)` entry plus tests, and a choice in the lobby.
 
-## Known differences from the official Camelot rules
+## Interpretation choices
 
-Camelot here follows the standard rules as agreed for this project, which differ from the World Camelot
-Federation's published rules in a few places: a piece in the enemy castle may leave it by jumping (officially
-it may never come out, may only move between the two castle squares twice, and a jump into the enemy castle
-ends the turn), a piece that jumps into its own castle isn't forced to leave next turn, and winning by capture
-or by blocking the opponent doesn't require keeping two pieces (and the official game has draws). The
-variant options in `rules.py` already support most of these.
+Where the official text leaves room, these are the calls made:
+
+- A piece can't canter over the same friendly piece twice in one turn. The rules don't say, but without a
+  limit a canter could loop forever.
+- "Twice during the game" for castle moves is counted per player, not per piece.
+- If a player has no legal move and the other has fewer than two pieces, the game is drawn (the rules give
+  neither a win nor a draw for that case).
+- Position repetition compares the board and whose turn it is, and either player may claim at any time
+  while the position stands.
+- Cam, per its rules, has no draws, and a blocked player simply loses.
 
 ## Development
 

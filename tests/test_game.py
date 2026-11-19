@@ -140,10 +140,11 @@ def test_reaching_the_goal_castle_wins():
     assert (game.winner, game.win_reason) == (WHITE, "castle")
 
 
-def test_capturing_the_last_piece_wins():
-    game = game_with({(9, 4): 1, (8, 4): 3})
+def test_capturing_the_last_piece_wins_with_two_pieces_left():
+    game = game_with({(9, 4): 1, (12, 2): 1, (8, 4): 3})
     game.play_turn(WHITE, [sq(9, 4), sq(7, 4)])
     assert (game.winner, game.win_reason) == (WHITE, "capture")
+    assert game.draw_reason is None
 
 
 def test_blocking_the_opponent_wins():
@@ -156,7 +157,7 @@ def test_blocking_the_opponent_wins():
 
 
 def test_no_turns_after_the_game_is_over():
-    game = game_with({(9, 4): 1, (8, 4): 3})
+    game = game_with({(9, 4): 1, (12, 2): 1, (8, 4): 3})
     game.play_turn(WHITE, [sq(9, 4), sq(7, 4)])
     with pytest.raises(IllegalMove, match="over"):
         game.play_turn(BLACK, [sq(0, 5), sq(1, 5)])

@@ -1,3 +1,4 @@
+from collections import Counter
 from threading import Lock
 
 import rules
@@ -5,6 +6,10 @@ from variants import DEFAULT_VARIANT
 
 # Longer than any real turn; just bounds the work a client can ask for.
 MAX_PATH_LENGTH = 64
+
+# Fifty moves by each side with no capture and no piece reaching a castle.
+FIFTY_MOVE_PLIES = 100
+REPETITIONS_TO_CLAIM = 3
 
 
 class IllegalMove(Exception):
@@ -16,9 +21,10 @@ def _turn_json(turn):
 
 
 class Game:
-    """Authoritative state for one game: the board, whose turn it is, and the winner.
+    """Authoritative state for one game: the board, whose turn it is, and how it ended.
 
-    White always moves first.
+    White always moves first. A game ends with a winner (`winner` and `win_reason`)
+    or, in variants that allow it, a draw (`draw_reason`).
     """
 
     def __init__(self, variant=DEFAULT_VARIANT):
@@ -28,17 +34,38 @@ class Game:
         self.turn = rules.WHITE
         self.winner = None
         self.win_reason = None
+        self.draw_reason = None
+        self.draw_offer = None  # the side that has offered a draw, if one is pending
         self.last_turn = None  # (side, Turn) of the most recent turn
+        self.castle_moves = {rules.WHITE: 0, rules.BLACK: 0}  # moves made between the castle squares
+        self.plies_without_progress = 0
+        self._positions = Counter({self._position(): 1})
         self._legal = rules.legal_turns(variant, self.board, self.turn)
+
+    @property
+    def over(self):
+        return self.winner is not None or self.draw_reason is not None
 
     @property
     def legal_turns(self):
         return list(self._legal)
 
+    def _position(self):
+        return (tuple(self.board), self.turn)
+
+    def claimable(self):
+        """Which draws a player could claim right now."""
+        if not self.variant.draws or self.over:
+            return {"repetition": False, "fiftyMoves": False}
+        return {
+            "repetition": self._positions[self._position()] >= REPETITIONS_TO_CLAIM,
+            "fiftyMoves": self.plies_without_progress >= FIFTY_MOVE_PLIES,
+        }
+
     def play_turn(self, player, moves):
         """Apply `player`'s turn, a path of square indices. Raises IllegalMove."""
         with self._lock:
-            if self.winner is not None:
+            if self.over:
                 raise IllegalMove("The game is over")
 
             if player != self.turn:
@@ -48,12 +75,88 @@ class Game:
 
             self.board = rules.apply_turn(self.board, turn)
             self.last_turn = (player, turn)
+            self.draw_offer = None
 
-            self.winner, self.win_reason = rules.find_winner(self.variant, self.board)
+            goal = self.variant.goal_castle[player]
+            if turn.moves[0] in goal and turn.moves[-1] in goal:
+                self.castle_moves[player] += 1
+            if turn.is_capture or turn.moves[-1] in goal:
+                self.plies_without_progress = 0
+            else:
+                self.plies_without_progress += 1
+
             self.turn = rules.other(player)
-            self._legal = [] if self.winner else rules.legal_turns(self.variant, self.board, self.turn)
-            if self.winner is None and not self._legal:
-                self.winner, self.win_reason = player, "blocked"
+            self._positions[self._position()] += 1
+            self._decide(player)
+
+    def _decide(self, mover):
+        """Work out whether the turn `mover` just played ended the game, and set up the next."""
+        variant = self.variant
+        self._legal = []
+
+        self.winner, self.win_reason = rules.find_winner(variant, self.board)
+        if self.winner:
+            return
+
+        mover_pieces = rules.count_pieces(self.board, mover)
+        other_pieces = rules.count_pieces(self.board, rules.other(mover))
+        if variant.draws and mover_pieces <= 1 and other_pieces <= 1:
+            self.draw_reason = "lone-pieces"
+            return
+
+        self._legal = rules.legal_turns(variant, self.board, self.turn, self.castle_moves[self.turn])
+        if not self._legal:
+            if variant.wins_need_two_pieces and mover_pieces < 2:
+                self.draw_reason = "stalemate"
+            else:
+                self.winner, self.win_reason = mover, "blocked"
+
+    # --- draws ----------------------------------------------------------------
+
+    def claim_draw(self, player):
+        """`player` claims a draw by repetition or by the fifty-move rule. Raises IllegalMove."""
+        with self._lock:
+            self._check_draws_possible()
+            claimable = self.claimable()
+            if claimable["repetition"]:
+                self._draw("repetition")
+            elif claimable["fiftyMoves"]:
+                self._draw("fifty-moves")
+            else:
+                raise IllegalMove("There is nothing to claim yet")
+
+    def offer_draw(self, player):
+        """`player` offers a draw. If the opponent has already offered one, it is agreed."""
+        with self._lock:
+            self._check_draws_possible()
+            if self.draw_offer == rules.other(player):
+                self._draw("agreed")
+            else:
+                self.draw_offer = player
+
+    def respond_to_draw(self, player, accept):
+        """`player` accepts or declines the opponent's pending offer."""
+        with self._lock:
+            self._check_draws_possible()
+            if self.draw_offer is None or self.draw_offer == player:
+                raise IllegalMove("There is no draw offer to answer")
+            if accept:
+                self._draw("agreed")
+            else:
+                self.draw_offer = None
+
+    def _check_draws_possible(self):
+        if not self.variant.draws:
+            raise IllegalMove(f"{self.variant.name} has no draws")
+        if self.over:
+            raise IllegalMove("The game is over")
+
+    def _draw(self, reason):
+        self.draw_reason = reason
+        self.draw_offer = None
+        self._legal = []
+
+    # --- snapshots ------------------------------------------------------------
 
     def snapshot(self):
         """Everything a client needs to draw the game, as JSON-ready data."""
@@ -68,6 +171,7 @@ class Game:
                 "variant": variant.key,
                 "variantName": variant.name,
                 "castleToWin": variant.castle_to_win,
+                "drawsAllowed": variant.draws,
                 "rows": variant.rows,
                 "cols": variant.cols,
                 "mask": list(variant.mask),
@@ -75,6 +179,12 @@ class Game:
                 "turn": self.turn,
                 "winner": self.winner,
                 "winReason": self.win_reason,
+                "draw": self.draw_reason,
+                "drawOffer": self.draw_offer,
+                "claimable": self.claimable(),
+                "castleMovesLeft": {
+                    side: max(variant.castle_moves - used, 0) for side, used in self.castle_moves.items()
+                },
                 "legal": [_turn_json(t) for t in self._legal],
                 "lastTurn": last,
                 "castles": {

@@ -20,6 +20,9 @@ and a turn made only of canters can't end where it began.
 Castles are the squares at each end of the board. A plain move or canter can't
 enter your own castle (a jump can). Each variant says how many pieces in the
 enemy castle win the game, and a few optional rules (see Variant).
+
+Camelot follows the World Camelot Federation's official rules; Cam is the
+simpler pocket version. Both are defined in variants.py.
 """
 
 from typing import NamedTuple
@@ -65,10 +68,20 @@ class Variant:
     castle_to_win           how many of your pieces in the enemy castle win the game
     enemy_castle_ends_turn  entering the enemy castle ends the turn at once, even
                             if the piece could keep jumping
-    confine_in_enemy_castle a piece in the enemy castle can only leave by jumping
+    confine_in_enemy_castle a piece in the enemy castle can never leave it; it may
+                            only move to the other castle square, `castle_moves`
+                            times per player in the whole game
+    castle_moves            how many such moves each player gets
     forced_exit             a piece that jumped into its own castle and couldn't
                             jump on must leave it on the next turn, ahead of any
                             other move (jumping out if it can)
+    wins_need_two_pieces    capturing everything, or blocking the opponent, only
+                            wins if you keep at least two pieces (a blocked game
+                            with fewer is drawn)
+    draws                   the game can be drawn: automatically when both sides
+                            are down to one piece or fewer, by agreement, and by
+                            claim after a third repetition or fifty moves each
+                            with no capture or piece reaching a castle
     """
 
     def __init__(
@@ -84,7 +97,10 @@ class Variant:
         castle_to_win,
         enemy_castle_ends_turn=False,
         confine_in_enemy_castle=False,
+        castle_moves=0,
         forced_exit=False,
+        wins_need_two_pieces=False,
+        draws=False,
     ):
         size = rows * cols
         if len(mask) != size or len(initial) != size:
@@ -103,7 +119,10 @@ class Variant:
         self.castle_to_win = castle_to_win
         self.enemy_castle_ends_turn = enemy_castle_ends_turn
         self.confine_in_enemy_castle = confine_in_enemy_castle
+        self.castle_moves = castle_moves
         self.forced_exit = forced_exit
+        self.wins_need_two_pieces = wins_need_two_pieces
+        self.draws = draws
 
         self._offsets = (
             -cols - 1, -cols, -cols + 1,
@@ -157,42 +176,51 @@ class Variant:
         return list(self._jumpable[index])
 
 
-def legal_turns(variant, board, player):
+def legal_turns(variant, board, player, castle_moves_used=0):
     """Every turn `player` may play on `board`, as a list of Turns.
 
     Capturing turns are returned only if at least one exists, and only once
-    they can't be extended any further.
+    they can't be extended any further. `castle_moves_used` is how many moves
+    between the castle squares the player has already spent.
     """
     captures = []
     others = []
+    castle_moves_left = max(variant.castle_moves - castle_moves_used, 0)
 
     if variant.forced_exit:
         trapped = [i for i in variant.home_castle[player] if board[i] and owner(board[i]) == player]
         if trapped:
             for start in trapped:
-                _explore(variant, board, player, start, is_knight(board[start]), captures, others)
+                _explore(variant, board, player, start, is_knight(board[start]), castle_moves_left, captures, others)
             return captures or others
 
     for start, piece in enumerate(board):
         if piece and owner(piece) == player:
-            _explore(variant, board, player, start, is_knight(piece), captures, others)
+            _explore(variant, board, player, start, is_knight(piece), castle_moves_left, captures, others)
     return captures or others
 
 
 _START, _CANTER, _JUMP = "start", "canter", "jump"
 
 
-def _explore(variant, board, player, start, knight, captures, others):
+def _explore(variant, board, player, start, knight, castle_moves_left, captures, others):
     home = variant.home_castle[player]
     goal = variant.goal_castle[player]
-    # a piece in the enemy castle may be unable to leave it except by jumping
-    confined = variant.confine_in_enemy_castle and start in goal
+
+    if variant.confine_in_enemy_castle and start in goal:
+        # a piece in the enemy castle can't come out: all it may do is move to the
+        # other castle square, and only a limited number of times
+        if castle_moves_left > 0:
+            for step in variant.adjacent_squares(start):
+                if step in goal and board[step] == 0:
+                    others.append(Turn((start, step), (None,)))
+        return
 
     work = list(board)
     work[start] = 0  # the moving piece is lifted off the board while it travels
 
     def can_land_without_jumping(square):
-        return work[square] == 0 and square not in home and (not confined or square in goal)
+        return work[square] == 0 and square not in home
 
     def visit(pos, moves, jumped, phase, cantered):
         entered_goal = variant.enemy_castle_ends_turn and len(moves) > 1 and pos in goal
@@ -263,6 +291,13 @@ def find_winner(variant, board):
 
     for side in (WHITE, BLACK):
         if not any(p and owner(p) == side for p in board):
-            return other(side), "capture"
+            winner = other(side)
+            if variant.wins_need_two_pieces and count_pieces(board, winner) < 2:
+                continue  # not enough left to win with; Game decides whether it is a draw
+            return winner, "capture"
 
     return None, None
+
+
+def count_pieces(board, side):
+    return sum(1 for p in board if p and owner(p) == side)

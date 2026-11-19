@@ -269,7 +269,7 @@ def test_winning_turn_reports_the_winner_and_ends_the_game():
     white, black = pair(WHITE)
     game = current_game()
     game.board = [0] * 192
-    game.board[sq(9, 4)], game.board[sq(8, 4)] = 1, 3
+    game.board[sq(9, 4)], game.board[sq(8, 4)], game.board[sq(12, 2)] = 1, 3, 1
     game._legal = rules.legal_turns(game.variant, game.board, WHITE)
 
     end_turn(white, [sq(9, 4), sq(7, 4)])
@@ -493,3 +493,102 @@ def test_hover_and_preview_are_checked_against_the_games_own_board():
     c, d = pair(code="camelot-game")
     c.emit("message", {"topic": "hover", "message": {"index": 100}})
     assert messages(d) == [("opponent-hover", {"index": 100})]
+
+
+# --- draws ------------------------------------------------------------------
+
+
+def draw_action(client, topic, **body):
+    client.emit("message", {"topic": topic, "message": body})
+
+
+def state_of(client):
+    updates = [m for t, m in messages(client) if t == "game-state"]
+    return updates[-1]["state"]
+
+
+def test_a_draw_offer_reaches_both_players_in_the_state():
+    a, b = pair()
+    draw_action(a, "offer-draw")
+    offer_seen_by_a, offer_seen_by_b = state_of(a)["drawOffer"], state_of(b)["drawOffer"]
+    assert offer_seen_by_a == offer_seen_by_b
+    assert offer_seen_by_a in ("white", "black")
+    assert current_game().draw_offer is not None
+
+
+def test_accepting_a_draw_ends_the_game_for_both():
+    white, black = pair(WHITE)
+    draw_action(white, "offer-draw")
+    white.get_received(), black.get_received()
+
+    draw_action(black, "respond-draw", accept=True)
+    for client in (white, black):
+        state = state_of(client)
+        assert state["draw"] == "agreed" and state["winner"] is None
+        assert state["legal"] == [] and state["drawOffer"] is None
+
+    end_turn(white, [sq(10, 2), sq(11, 2)])
+    assert messages(white) == [("move-rejected", {"error": "The game is over"})]
+
+
+def test_declining_a_draw_tells_the_offerer():
+    white, black = pair(WHITE)
+    draw_action(white, "offer-draw")
+    white.get_received(), black.get_received()
+
+    draw_action(black, "respond-draw", accept=False)
+    assert [t for t, _ in messages(white)] == ["game-state", "draw-declined"]
+    assert current_game().draw_offer is None and not current_game().over
+
+
+@pytest.mark.parametrize("accept", ["yes", 1, None, "true"])
+def test_only_a_real_true_accepts_a_draw(accept):
+    white, black = pair(WHITE)
+    draw_action(white, "offer-draw")
+    draw_action(black, "respond-draw", accept=accept)
+    assert not current_game().over
+
+
+def test_answering_your_own_offer_or_a_missing_one_is_rejected():
+    white, black = pair(WHITE)
+    draw_action(black, "respond-draw", accept=True)
+    assert [t for t, _ in messages(black)] == ["draw-rejected"]
+
+    draw_action(white, "offer-draw")
+    white.get_received(), black.get_received()
+    draw_action(white, "respond-draw", accept=True)
+    assert messages(white) == [("draw-rejected", {"error": "There is no draw offer to answer"})]
+    assert black.get_received() == []
+
+
+def test_claiming_a_draw_needs_grounds():
+    white, black = pair(WHITE)
+    draw_action(white, "claim-draw")
+    assert messages(white) == [("draw-rejected", {"error": "There is nothing to claim yet"})]
+    assert black.get_received() == []
+
+
+def test_the_fifty_move_rule_can_be_claimed_over_the_socket():
+    white, black = pair(WHITE)
+    current_game().plies_without_progress = 100
+    draw_action(black, "claim-draw")
+    for client in (white, black):
+        assert state_of(client)["draw"] == "fifty-moves"
+
+
+def test_a_move_withdraws_a_pending_offer_in_the_next_state():
+    white, black = pair(WHITE)
+    draw_action(black, "offer-draw")
+    white.get_received(), black.get_received()
+    end_turn(white, [sq(10, 2), sq(11, 2)])
+    assert state_of(black)["drawOffer"] is None
+
+
+def test_cam_refuses_draw_requests():
+    white, black = connect_with("cam"), connect()
+    white.get_received(), black.get_received()
+    for topic in ("offer-draw", "claim-draw", "respond-draw"):
+        draw_action(white, topic, accept=True)
+    errors_seen = [m["error"] for t, m in messages(white) if t == "draw-rejected"]
+    assert errors_seen == ["Cam has no draws"] * 3
+    assert black.get_received() == []

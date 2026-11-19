@@ -115,6 +115,8 @@ def handle_message(message):
 
     if topic == "end-turn":
         handle_end_turn(body, session, opponent_sid)
+    elif topic in ("offer-draw", "respond-draw", "claim-draw"):
+        handle_draw(topic, body, session, opponent_sid)
     elif topic == "preview" and valid_path(body.get("moves"), session[0].variant.size):
         emit("message", {"topic": "opponent-preview", "message": {"moves": body["moves"]}}, to=opponent_sid)
     elif topic == "hover" and (body.get("index") is None or valid_square(body.get("index"), session[0].variant.size)):
@@ -135,9 +137,36 @@ def handle_end_turn(body, session, opponent_sid):
         emit("message", {"topic": "move-rejected", "message": {"error": str(e)}})
         return
 
+    broadcast_state(game, opponent_sid)
+
+
+def broadcast_state(game, opponent_sid):
     update = {"topic": "game-state", "message": {"state": game.snapshot()}}
     emit("message", update)
     emit("message", update, to=opponent_sid)
+
+
+def handle_draw(topic, body, session, opponent_sid):
+    """Offers, answers to offers, and claims, in variants where the game can be drawn."""
+    game, side = session
+    declined = False
+
+    try:
+        if topic == "offer-draw":
+            game.offer_draw(side)
+        elif topic == "claim-draw":
+            game.claim_draw(side)
+        else:
+            accept = body.get("accept") is True
+            game.respond_to_draw(side, accept)
+            declined = not accept
+    except IllegalMove as e:
+        emit("message", {"topic": "draw-rejected", "message": {"error": str(e)}})
+        return
+
+    broadcast_state(game, opponent_sid)
+    if declined:
+        emit("message", {"topic": "draw-declined", "message": {}}, to=opponent_sid)
 
 
 @app.get("/healthz")

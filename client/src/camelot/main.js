@@ -14,7 +14,7 @@ mountThemePickers(document.querySelectorAll('[data-theme-picker]'));
 // leaving a game that is still going ends it for the opponent too, so check first
 document.querySelectorAll('[data-leaves-game]').forEach((link) => {
   link.addEventListener('click', (event) => {
-    if (!session || session.state.winner) {
+    if (!session || isOver(session.state)) {
       return;
     }
     if (confirm('Leave this game? Your opponent will be disconnected.')) {
@@ -30,6 +30,9 @@ const SIDE_NAMES = { white: 'White', black: 'Black' };
 const otherSide = (side) => (side === 'white' ? 'black' : 'white');
 
 const pieceOwner = (piece) => (piece <= 2 ? 'white' : 'black');
+
+/** Whether a game has been won or drawn. */
+const isOver = (state) => Boolean(state.winner || state.draw);
 
 let connection = null;
 let session = null; // set once an opponent has joined
@@ -65,7 +68,7 @@ function start(code, side, variant) {
   connection = connect({ code, side, variant });
   connection.onRefused((reason) => showProblem(`Could not join the game: ${reason}.`));
   connection.onLost(() => {
-    if (!session?.state.winner) {
+    if (!session || !isOver(session.state)) {
       showProblem('The connection to the server was lost.');
     }
   });
@@ -91,9 +94,15 @@ function start(code, side, variant) {
       render();
     }
   });
+  connection.on('draw-rejected', ({ error }) => {
+    $('notice').textContent = error;
+  });
+  connection.on('draw-declined', () => {
+    $('notice').textContent = 'Your opponent declined the draw.';
+  });
   connection.on('chat', ({ text }) => addChat(text, false));
   connection.on('opponent-disconnected', () => {
-    if (!session?.state.winner) {
+    if (!session || !isOver(session.state)) {
       showProblem('Your opponent disconnected.');
     }
   });
@@ -154,7 +163,7 @@ function applyState(state) {
   $('notice').textContent = '';
   render();
 
-  if (state.winner) {
+  if (isOver(state)) {
     showResult();
   }
 }
@@ -167,7 +176,7 @@ function setPath(path) {
 
 function isMyTurn() {
   const { state, side, pending } = session;
-  return state.turn === side && !state.winner && !pending;
+  return state.turn === side && !isOver(state) && !pending;
 }
 
 function handleSquare(index) {
@@ -191,6 +200,11 @@ function handleSquare(index) {
     setPath([index]);
   }
 }
+
+$('offer-draw').addEventListener('click', () => connection.send('offer-draw'));
+$('claim-draw').addEventListener('click', () => connection.send('claim-draw'));
+$('accept-draw').addEventListener('click', () => connection.send('respond-draw', { accept: true }));
+$('decline-draw').addEventListener('click', () => connection.send('respond-draw', { accept: false }));
 
 $('undo').addEventListener('click', () => {
   if (session && isMyTurn() && session.path.length > 0) {
@@ -257,7 +271,10 @@ function renderStatus(myTurn) {
   const { state, side } = session;
   const status = $('status');
 
-  if (state.winner) {
+  if (state.draw) {
+    status.textContent = 'Drawn game';
+    status.className = 'status';
+  } else if (state.winner) {
     status.textContent = state.winner === side ? 'You won' : 'You lost';
     status.className = 'status';
   } else if (state.turn === side) {
@@ -277,7 +294,7 @@ function renderPlayers() {
   state.board.forEach((piece) => piece && counts[pieceOwner(piece)]++);
 
   const row = (who, owner) => `
-    <div class="player${state.turn === owner && !state.winner ? ' active' : ''}">
+    <div class="player${state.turn === owner && !isOver(state) ? ' active' : ''}">
       <svg class="shield" viewBox="0 0 100 120" aria-hidden="true"><use href="#shield-${owner}" /></svg>
       <span class="who"><strong>${who}</strong><small>${SIDE_NAMES[owner]}</small></span>
       <span class="count" title="Pieces left">${counts[owner]}</span>
@@ -294,8 +311,10 @@ function renderControls(myTurn) {
   $('end-turn').disabled = !complete;
   $('end-turn').classList.toggle('ready', complete && isFinished(state.legal, path));
 
+  renderDrawControls();
+
   let hint;
-  if (state.winner) {
+  if (isOver(state)) {
     hint = 'The game is over.';
   } else if (!myTurn) {
     hint = session.pending ? 'Sending your move…' : 'Waiting for your opponent to move.';
@@ -317,6 +336,23 @@ function renderControls(myTurn) {
   $('hint').textContent = hint;
 }
 
+/** The offer, claim and answer buttons for variants where the game can be drawn. */
+function renderDrawControls() {
+  const { state, side } = session;
+  const open = state.drawsAllowed && !isOver(state);
+  const offerFromThem = open && state.drawOffer && state.drawOffer !== side;
+  const claimable = state.claimable.repetition || state.claimable.fiftyMoves;
+
+  $('draw-row').hidden = !open;
+  $('draw-offer').hidden = !offerFromThem;
+  $('claim-draw').hidden = !claimable;
+  $('claim-draw').textContent = state.claimable.repetition ? 'Claim a draw (repetition)' : 'Claim a draw (50 moves)';
+
+  const offered = state.drawOffer === side;
+  $('offer-draw').disabled = offered;
+  $('offer-draw').textContent = offered ? 'Draw offered' : 'Offer a draw';
+}
+
 /** Whether one of the player's pieces is standing in the castle it started beside. */
 function pieceInOwnCastle() {
   const { state, side } = session;
@@ -329,6 +365,7 @@ function pieceInOwnCastle() {
 function showResult() {
   const { state, side, code } = session;
   const won = state.winner === side;
+  const drawn = Boolean(state.draw);
 
   const bothTowers = state.castleToWin > 1;
   const castle = bothTowers
@@ -344,8 +381,16 @@ function showResult() {
     blocked: won ? 'Huzzah! Your opponent is hemmed in with no move to make.' : 'You are hemmed in with no move to make.',
   };
 
-  $('over-title').textContent = won ? 'Victory!' : 'Alas, defeat';
-  $('over-text').textContent = reasons[state.winReason] ?? '';
+  const draws = {
+    'lone-pieces': 'Each side is down to a single piece, so neither can win.',
+    stalemate: 'A player has no legal move, but the other has fewer than two pieces left to win with.',
+    agreed: 'You both agreed to a draw.',
+    repetition: 'The same position came up three times.',
+    'fifty-moves': 'Fifty moves each passed without a capture or a piece reaching a castle.',
+  };
+
+  $('over-title').textContent = drawn ? 'A draw' : won ? 'Victory!' : 'Alas, defeat';
+  $('over-text').textContent = (drawn ? draws[state.draw] : reasons[state.winReason]) ?? '';
 
   // the next game swaps colours: whoever clicks first creates it and asks for the other side
   $('play-again').onclick = () => {

@@ -253,10 +253,10 @@ def test_a_trapped_knight_may_leave_with_a_charge():
     assert all(t.is_capture for t in turns)
 
 
-def test_camelot_has_no_forced_exit():
+def test_camelot_also_forces_a_piece_out_of_its_own_castle():
     board = board_with(CAMELOT, {(15, 5): 1, (9, 4): 1})
     starts = {t.moves[0] for t in legal_turns(CAMELOT, board, WHITE)}
-    assert starts == {square(CAMELOT, 15, 5), square(CAMELOT, 9, 4)}
+    assert starts == {square(CAMELOT, 15, 5)}
 
 
 # --- canter loops (both games) ----------------------------------------------

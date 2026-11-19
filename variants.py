@@ -1,5 +1,11 @@
 """The games the server can host: Camelot and its cousin Cam.
 
+Camelot follows the World Camelot Federation's official rules: a piece that enters
+the enemy castle can never leave it (bar two moves between the castle squares per
+player) and entering ends the turn; a piece that jumps into its own castle must
+leave on the next turn; capturing everything or blocking the opponent only wins
+with two or more pieces left; and the game can be drawn.
+
 Cam is Parker Brothers' 1949 pocket version of Camelot. Its rules, as published
 by the World Camelot Federation, differ in a few ways: a much smaller board with
 a single castle square at each end, 2 knights and 5 men a side, and a win as soon
@@ -64,7 +70,12 @@ CAMELOT = Variant(
         BLACK: (5, 6),
     },
     castle_to_win=2,
+    enemy_castle_ends_turn=True,
     confine_in_enemy_castle=True,
+    castle_moves=2,
+    forced_exit=True,
+    wins_need_two_pieces=True,
+    draws=True,
 )
 
 # --- Cam --------------------------------------------------------------------
