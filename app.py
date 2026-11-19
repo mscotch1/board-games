@@ -1,96 +1,88 @@
-from dotenv import load_dotenv
-from flask import Flask, request, send_from_directory, render_template_string, abort
-from flask_socketio import SocketIO, emit
-from os import path, listdir, getenv
+import random
+from os import getenv, path
 
-from game import Game, IllegalMove
+from dotenv import load_dotenv
+from flask import Flask, abort, redirect, request, send_from_directory
+# python-socketio only passes a refusal reason on to the client for its own exception
+from flask_socketio import ConnectionRefusedError, SocketIO, emit
+
+import rules
+from game import MAX_PATH_LENGTH, Game, IllegalMove
 from lobby import JoinResult, Lobby
 
 load_dotenv()
 
-WEB_DIR = path.abspath(path.join(__file__, path.pardir, "web"))
-GAMES_DIR = path.abspath(path.join(WEB_DIR, "games"))
+BASE_DIR = path.dirname(path.abspath(__file__))
+MAX_CHAT_LENGTH = 500
 
-# Simple HTML template for the index page
-INDEX_TEMPLATE = """
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Monka-Games | Game Index</title>
+def allowed_origins():
+    """Origins allowed to open a socket, from CORS_ALLOWED_ORIGINS (comma separated or "*").
 
-    <script src="/modules/jquery.min.js"></script>
-    <script src="/modules/bootstrap.bundle.min.js"></script>
-    <link href="/modules/bootstrap.min.css" rel="stylesheet">
-    <script src="/modules/socket.io.js"></script>
-</head>
+    By default only the page's own origin is allowed, which is enough unless a
+    proxy rewrites the Host header.
+    """
+    value = getenv("CORS_ALLOWED_ORIGINS")
+    if not value:
+        return None
+    return "*" if value.strip() == "*" else [o.strip() for o in value.split(",") if o.strip()]
 
-<body>
-    <h1>Start or join a new game</h1>
-    <ul class="list-group" style="max-width: 400px">
-        {% for game in games %}
-        <li class="list-group-item"><a href="/games/{{ game }}/index.html">{{ game }}</a></li>
-        {% endfor %}
-    </ul>
-</body>
-</html>
-"""
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = getenv("SECRET_KEY")
+app.config["STATIC_DIR"] = path.abspath(getenv("STATIC_DIR", path.join(BASE_DIR, "client", "dist")))
 # Threading mode (with simple-websocket) works under gunicorn's gthread worker
 # without monkey patching. Game state is in process memory, so run one worker.
-socketio = SocketIO(app, async_mode="threading")
+socketio = SocketIO(app, async_mode="threading", cors_allowed_origins=allowed_origins())
 
 lobby = Lobby()
-sessions = {}  # sid -> (Game, player), for players currently paired
-
-# The server owns the board, turn and winner. Clients may only relay these
-# channels to their opponent; everything else arrives via validated end-turn.
-RELAYED_CHANNELS = {"chat", "board/interact/hovercell", "board/turn/move"}
-SERVER_SIGNATURE = "server"
+sessions = {}  # sid -> (Game, side), for players currently paired
+requested_sides = {}  # sid -> side the waiting player asked for
 
 
-def state_dispatch(channel, type_, payload=None):
-    action = {"channel": channel, "type": type_, "payload": payload}
-    return {"topic": "state-dispatch", "message": {"action": action, "signature": SERVER_SIGNATURE}}
+def valid_square(value):
+    return type(value) is int and 0 <= value < rules.ROWS * rules.COLS
 
 
-def turn_actions(game):
-    actions = [
-        state_dispatch("board/pieces", "SET", game.board),
-        state_dispatch("game/turn", "SET", game.turn),
-    ]
-    if game.winner is not None:
-        actions.append(state_dispatch("game/winner", "FINISH", {"winner": game.winner}))
-    actions.append(state_dispatch("board/turn/move", "RESET"))
-    return actions
+def valid_path(value):
+    return isinstance(value, list) and len(value) <= MAX_PATH_LENGTH and all(valid_square(v) for v in value)
 
 
 @socketio.on("connect")
 def handle_connect(auth=None):
-    game_code = request.headers.get("Game-Code")
-    if not game_code:
-        raise ConnectionRefusedError({"error": "Missing Game-Code header"})
+    auth = auth if isinstance(auth, dict) else {}
+    game_code = auth.get("code")
+    if not isinstance(game_code, str) or not game_code.strip() or len(game_code) > 64:
+        raise ConnectionRefusedError("Missing game code", {"code": "missing-code"})
+    game_code = game_code.strip()
 
+    # Whoever gets here first picks a side; anything else means "random". This is
+    # recorded before joining so a quick opponent can't pair up before it is stored.
+    requested_sides[request.sid] = auth.get("side") if auth.get("side") in (rules.WHITE, rules.BLACK) else None
     result, opponent_sid = lobby.join(game_code, request.sid)
 
     if result is JoinResult.FULL:
-        # Refusing the connection tells the client why via connect_error.
-        raise ConnectionRefusedError({"error": "Game already full"})
-    if result is JoinResult.PAIRED:
-        game = Game()
-        sessions[opponent_sid] = (game, "1")
-        sessions[request.sid] = (game, "2")
-        emit("message", {"topic": "game-ready", "message": {"assignment": "1"}}, to=opponent_sid)
-        emit("message", {"topic": "game-ready", "message": {"assignment": "2"}}, to=request.sid)
+        requested_sides.pop(request.sid, None)
+        # Refusing the connection tells the client why via connect_error: the message
+        # becomes error.message and the data error.data (which a network failure lacks).
+        raise ConnectionRefusedError("Game already full", {"code": "full"})
+
+    if result is JoinResult.WAITING:
+        return
+
+    requested_sides.pop(request.sid, None)
+    creator_side = requested_sides.pop(opponent_sid, None) or random.choice((rules.WHITE, rules.BLACK))
+    game = Game()
+    sessions[opponent_sid] = (game, creator_side)
+    sessions[request.sid] = (game, rules.other(creator_side))
+    for sid, (_, side) in ((opponent_sid, sessions[opponent_sid]), (request.sid, sessions[request.sid])):
+        emit("message", {"topic": "game-ready", "message": {"side": side, "state": game.snapshot()}}, to=sid)
 
 
 @socketio.on("disconnect")
 def handle_disconnect(reason=None):
     sessions.pop(request.sid, None)
+    requested_sides.pop(request.sid, None)
     opponent_sid = lobby.leave(request.sid)
     if opponent_sid is not None:
         sessions.pop(opponent_sid, None)
@@ -106,43 +98,56 @@ def handle_message(message):
         return
 
     topic = message.get("topic") if isinstance(message, dict) else None
+    body = message.get("message") if isinstance(message, dict) else None
+    body = body if isinstance(body, dict) else {}
+
     if topic == "end-turn":
-        handle_end_turn(message.get("message"), session, opponent_sid)
-    elif topic == "state-dispatch" and is_relayable(message.get("message")):
-        emit("message", message, to=opponent_sid)
+        handle_end_turn(body, session, opponent_sid)
+    elif topic == "preview" and valid_path(body.get("moves")):
+        emit("message", {"topic": "opponent-preview", "message": {"moves": body["moves"]}}, to=opponent_sid)
+    elif topic == "hover" and (body.get("index") is None or valid_square(body.get("index"))):
+        emit("message", {"topic": "opponent-hover", "message": {"index": body.get("index")}}, to=opponent_sid)
+    elif topic == "chat" and isinstance(body.get("text"), str):
+        text = body["text"].strip()[:MAX_CHAT_LENGTH]
+        if text:
+            emit("message", {"topic": "chat", "message": {"text": text}}, to=opponent_sid)
     # anything else is dropped: clients can't speak for the server
 
 
-def is_relayable(payload):
-    action = payload.get("action") if isinstance(payload, dict) else None
-    return isinstance(action, dict) and action.get("channel") in RELAYED_CHANNELS
-
-
-def handle_end_turn(payload, session, opponent_sid):
-    game, player = session
-    moves = payload.get("moves") if isinstance(payload, dict) else None
+def handle_end_turn(body, session, opponent_sid):
+    game, side = session
 
     try:
-        game.play_turn(player, moves)
+        game.play_turn(side, body.get("moves"))
     except IllegalMove as e:
         emit("message", {"topic": "move-rejected", "message": {"error": str(e)}})
         return
 
-    for action in turn_actions(game):
-        emit("message", action)
-        emit("message", action, to=opponent_sid)
+    update = {"topic": "game-state", "message": {"state": game.snapshot()}}
+    emit("message", update)
+    emit("message", update, to=opponent_sid)
 
 
-@app.route("/", methods=["GET"])
-def home():
-    games = listdir(GAMES_DIR)
-    return render_template_string(INDEX_TEMPLATE, games=games)
+@app.get("/healthz")
+def healthz():
+    return "ok"
 
 
-@app.route("/<path:filename>", methods=["GET"])
+@app.get("/", defaults={"filename": ""})
+@app.get("/<path:filename>")
 def serve_file(filename):
+    static_dir = app.config["STATIC_DIR"]
+    target = path.join(static_dir, filename)
+
+    if path.isdir(target):
+        if filename and not request.path.endswith("/"):
+            return redirect(request.path + "/")
+        filename = path.join(filename, "index.html")
+
+    # build output under assets/ is content-hashed, so it can be cached forever
+    max_age = 31536000 if filename.startswith("assets/") else None
     try:
-        return send_from_directory(WEB_DIR, filename)
+        return send_from_directory(static_dir, filename, max_age=max_age)
     except FileNotFoundError:
         abort(404)
 

@@ -1,12 +1,34 @@
-"""Camelot rules, ported as-is from web/games/camelot/scripts/board.js.
+"""Camelot rules.
 
-Boards are flat lists of ROWS * COLS ints: 0 is empty, 1/2 are player 1's
-man/knight and 3/4 are player 2's man/knight. Players are the strings "1"/"2".
-Only squares where BOARD_MASK is 1 are part of the board.
+Boards are flat lists of ROWS * COLS ints: 0 is empty, 1/2 are white's man/knight
+and 3/4 are black's man/knight. Only squares where BOARD_MASK is 1 are on the
+board. White starts at the bottom and moves up; black starts at the top.
+
+A turn is a path of squares for one piece. Its first square is where the piece
+starts and every later square is where it lands:
+
+* plain move: one step to an adjacent empty square
+* canter: jump over an adjacent friendly piece (which stays on the board)
+* jump: jump over an adjacent enemy piece, capturing it
+* knight's charge: a knight may canter and then jump. Men may only chain
+  canters or chain jumps, never mix them.
+
+Capturing is mandatory, and a capturing turn must continue while its piece can
+still jump. A piece can't canter over the same friendly piece twice in a turn.
+
+Castles are the two squares at each end of the board. A plain move or canter
+can't enter your own castle (a jump can), and a piece inside the enemy castle
+can only leave it by jumping. You win by occupying both squares of the enemy
+castle, by capturing every enemy piece, or when your opponent has no legal turn.
 """
+
+from typing import NamedTuple
 
 ROWS = 16
 COLS = 12
+
+WHITE = "white"
+BLACK = "black"
 
 BOARD_MASK = (
     0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0,
@@ -46,11 +68,33 @@ INITIAL_BOARD = (
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 )
 
+TOP_CASTLE = (5, 6)
+BOTTOM_CASTLE = ((ROWS - 1) * COLS + 5, (ROWS - 1) * COLS + 6)
+
+# the castle a side starts next to, and the enemy castle it is trying to occupy
+HOME_CASTLE = {WHITE: BOTTOM_CASTLE, BLACK: TOP_CASTLE}
+GOAL_CASTLE = {WHITE: TOP_CASTLE, BLACK: BOTTOM_CASTLE}
+
 _NEIGHBOR_OFFSETS = (
     -COLS - 1, -COLS, -COLS + 1,
     -1, 1,
     COLS - 1, COLS, COLS + 1,
 )
+
+
+class Turn(NamedTuple):
+    """One complete turn: the squares the piece visits, and what each step jumped.
+
+    `jumped[i]` is the square captured on the step to `moves[i + 1]`, or None
+    when that step was a plain move or a canter.
+    """
+
+    moves: tuple
+    jumped: tuple
+
+    @property
+    def is_capture(self):
+        return any(j is not None for j in self.jumped)
 
 
 def _on_board(index):
@@ -90,121 +134,111 @@ def jumpable_squares(index):
     return result
 
 
-def is_empty(board, index):
-    return board[index] == 0
+def owner(piece):
+    """The side that owns a non-empty piece."""
+    return WHITE if piece <= 2 else BLACK
 
 
-def is_man(board, index):
-    return board[index] != 0 and board[index] % 2 == 1
+def is_knight(piece):
+    return piece != 0 and piece % 2 == 0
 
 
-def player_of(piece):
-    """The player ("1" or "2") who owns a non-empty piece."""
-    return "1" if (piece - 1) // 2 == 0 else "2"
+def other(player):
+    return BLACK if player == WHITE else WHITE
 
 
-def is_same_team(board, index1, index2):
-    return (
-        board[index1] > 0
-        and board[index2] > 0
-        and player_of(board[index1]) == player_of(board[index2])
-    )
+def legal_turns(board, player):
+    """Every turn `player` may play on `board`, as a list of Turns.
+
+    Capturing turns are returned only if at least one exists, and only once
+    they can't be extended any further.
+    """
+    captures = []
+    others = []
+    for start, piece in enumerate(board):
+        if piece and owner(piece) == player:
+            _explore(board, player, start, is_knight(piece), captures, others)
+    return captures or others
 
 
-def is_players_piece(board, player, index):
-    return board[index] != 0 and player_of(board[index]) == player
+_START, _CANTER, _JUMP = "start", "canter", "jump"
 
 
-def make_moves(board, moves):
-    """Apply a path of moves to a copy of `board`, removing any jumped piece."""
+def _explore(board, player, start, knight, captures, others):
+    home = HOME_CASTLE[player]
+    goal = GOAL_CASTLE[player]
+    # a piece in the enemy castle may not leave it except by jumping
+    confined = start in goal
+
+    work = list(board)
+    work[start] = 0  # the moving piece is lifted off the board while it travels
+
+    def can_land_without_jumping(square):
+        return work[square] == 0 and square not in home and (not confined or square in goal)
+
+    def visit(pos, moves, jumped, phase, cantered):
+        jumps = []
+        if phase != _CANTER or knight:
+            for landing in jumpable_squares(pos):
+                over = (pos + landing) // 2
+                if work[landing] == 0 and work[over] != 0 and owner(work[over]) != player:
+                    jumps.append((landing, over))
+
+        if len(moves) > 1:
+            turn = Turn(tuple(moves), tuple(jumped))
+            if phase != _JUMP:
+                others.append(turn)
+            elif not jumps:
+                captures.append(turn)
+
+        for landing, over in jumps:
+            taken, work[over] = work[over], 0
+            visit(landing, moves + [landing], jumped + [over], _JUMP, cantered)
+            work[over] = taken
+
+        if phase != _JUMP:
+            for landing in jumpable_squares(pos):
+                over = (pos + landing) // 2
+                if (
+                    work[over] != 0
+                    and owner(work[over]) == player
+                    and over not in cantered
+                    and can_land_without_jumping(landing)
+                ):
+                    visit(landing, moves + [landing], jumped + [None], _CANTER, cantered | {over})
+
+        if phase == _START:
+            for step in adjacent_squares(pos):
+                if can_land_without_jumping(step):
+                    others.append(Turn((pos, step), (None,)))
+
+    visit(start, [start], [], _START, frozenset())
+
+
+def apply_turn(board, turn):
+    """The board after `turn`: the piece moves to its final square and jumped pieces go."""
     new_board = list(board)
-
-    for i in range(1, len(moves)):
-        start, end = moves[i - 1], moves[i]
-
-        captured = None
-        if end in jumpable_squares(start):
-            jumped = (start + end) // 2
-            if new_board[jumped] != 0 and not is_same_team(new_board, jumped, start):
-                captured = jumped
-
-        new_board[end] = new_board[start]
-        new_board[start] = 0
-        if captured is not None:
-            new_board[captured] = 0
-
+    new_board[turn.moves[-1]] = new_board[turn.moves[0]]
+    if turn.moves[-1] != turn.moves[0]:
+        new_board[turn.moves[0]] = 0
+    for over in turn.jumped:
+        if over is not None:
+            new_board[over] = 0
     return new_board
 
 
-def is_valid_move(board, player, moves):
-    """Whether `moves` (a path of square indices) is legal for `player`.
-
-    A single index is a valid selection of one of the player's pieces. Longer
-    paths are either one step to an adjacent square, or a series of jumps
-    over opposing pieces and canters over own pieces.
-    """
-    if len(moves) < 1:
-        return False
-
-    if len(moves) == 1:
-        return is_players_piece(board, player, moves[0])
-
-    if len(moves) == 2 and moves[1] in adjacent_squares(moves[0]):
-        return is_empty(board, moves[1])
-
-    is_man_piece = is_man(board, moves[0])
-    is_jumping = False
-    is_cantering = False
-
-    temp_board = list(board)
-    for i in range(1, len(moves)):
-        start, end = moves[i - 1], moves[i]
-
-        if end not in jumpable_squares(start):
-            return False
-
-        jumped = (start + end) // 2
-        next_is_jump = not is_empty(temp_board, jumped) and not is_same_team(board, jumped, moves[0])
-        next_is_canter = is_same_team(board, jumped, moves[0])
-
-        if not next_is_jump and not next_is_canter:
-            return False
-
-        if i >= 2 and moves[i - 2] == end:
-            return False
-
-        if not is_empty(temp_board, end):
-            return False
-
-        if is_cantering and next_is_jump and is_man_piece:
-            return False  # only knights can do a knight's charge
-
-        if is_jumping and not next_is_jump:
-            return False
-
-        is_jumping = next_is_jump
-        is_cantering = next_is_canter
-
-        temp_board = make_moves(board, moves[: i + 1])
-
-    return True
-
-
 def find_winner(board):
-    """The winning player ("1" or "2"), or None if the game is still going."""
-    back_row = [board[i] for i in range(COLS) if BOARD_MASK[i]]
-    front_row = [board[i] for i in range((ROWS - 1) * COLS, ROWS * COLS) if BOARD_MASK[i]]
+    """(winner, reason) if a side has won on `board` outright, else (None, None).
 
-    if all(0 < v < 3 for v in back_row):
-        return "1"
+    This doesn't know about blocked players; see Game for that.
+    """
+    for side in (WHITE, BLACK):
+        if all(board[i] != 0 and owner(board[i]) == side for i in GOAL_CASTLE[side]):
+            return side, "castle"
 
-    if all(v >= 3 for v in front_row):
-        return "2"
+    for side in (WHITE, BLACK):
+        if not any(p and owner(p) == side for p in board):
+            return other(side), "capture"
 
-    if not any(is_players_piece(board, "1", i) for i in range(len(board))):
-        return "2"
+    return None, None
 
-    if not any(is_players_piece(board, "2", i) for i in range(len(board))):
-        return "1"
-
-    return None

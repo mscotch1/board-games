@@ -1,0 +1,19 @@
+{
+  "name": "board-games-client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource/medievalsharp": "^5.3.0",
+    "socket.io-client": "^4.8.4"
+  },
+  "devDependencies": {
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}
