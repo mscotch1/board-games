@@ -21,11 +21,16 @@ const build = {
   built: process.env.APP_BUILT || new Date().toISOString(),
 };
 
+// Where the source lives, for the footer's links (the AGPL asks that users can get it). The release
+// workflow passes REPO_URL; set it to an empty string to leave the links out.
+const repo = (process.env.REPO_URL ?? 'https://github.com/mscotch1/board-games').replace(/\/+$/, '');
+
 export default defineConfig({
   // SITE_URL (e.g. https://games.example.com) is the public address, for link previews and canonical links
   plugins: [siteMetaPlugin(process.env.SITE_URL)],
   define: {
     __BUILD__: JSON.stringify(build),
+    __REPO__: JSON.stringify(repo),
   },
   build: {
     rollupOptions: {
