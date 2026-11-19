@@ -5,19 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Camelot | Monka Games</title>
     <link rel="icon" href="/favicon.ico" />
-    <script>
-      // set the theme before the first paint (theme.js keeps it up to date)
-      try {
-        var root = document.documentElement;
-        var saved = localStorage.getItem('theme');
-        if (saved !== 'light' && saved !== 'dark') {
-          saved = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-        } else {
-          root.dataset.theme = saved;
-        }
-        root.dataset.effective = saved;
-      } catch (e) {}
-    </script>
+    <script src="/theme-init.js"></script>
     <script type="module" src="/src/camelot/main.js"></script>
   </head>
   <body>

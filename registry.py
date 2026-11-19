@@ -121,8 +121,9 @@ class Session(NamedTuple):
 
 
 class Registry:
-    def __init__(self, store, *, ttl=None, clock=time.time, rng=None):
+    def __init__(self, store, *, ttl=None, clock=time.time, rng=None, max_games=None):
         self._store = store
+        self._max_games = max_games  # refuse new games beyond this many (None for no limit)
         self._ttl = {**DEFAULT_TTL, **(ttl or {})}
         self._clock = clock
         self._rng = rng or random.Random()
@@ -135,14 +136,15 @@ class Registry:
 
     # --- connecting -----------------------------------------------------------
 
-    def attach(self, sid, code, *, token=None, resume=False, side=None, variant_key=None):
+    def attach(self, sid, code, *, token=None, resume=False, side=None, variant_key=None, before_create=None):
         """Connect `sid` to the game `code`. Raises Refused.
 
         `token` is the player's secret. A token that belongs to the game means a returning
         player. Otherwise this is a new player: the creator of a new game, or the opponent
         joining a waiting one, and their token (made up here if they didn't bring one)
         is theirs from now on. `resume` says the player has been in this game before, so
-        a game that can't be found is an error rather than a new game.
+        a game that can't be found is an error rather than a new game. `before_create`, if given,
+        is called just before a brand-new game is made, and may raise Refused to stop it.
         """
         with self._lock:
             self._maybe_purge()
@@ -158,6 +160,10 @@ class Registry:
             token = token or self._new_token()
 
             if record is None:
+                if before_create is not None:
+                    before_create()
+                if self._max_games and len(self._store.meta()) >= self._max_games:
+                    raise Refused("The server is full of games right now. Please try again later.", "busy")
                 variant = VARIANTS.get(variant_key, DEFAULT_VARIANT)
                 creator_side = side if side in (rules.WHITE, rules.BLACK) else None
                 record = Record(code, variant.key, token, creator_side, self._clock())

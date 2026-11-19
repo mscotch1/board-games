@@ -136,6 +136,22 @@ Restarting or replacing the container keeps every game, as long as `/data` is a 
 | `WAITING_TTL_HOURS`    | Hours before a game nobody has joined is deleted. Default 24.            |
 | `GAME_TTL_DAYS`        | Days of inactivity before a game in progress is deleted. Default 7.      |
 | `FINISHED_TTL_HOURS`   | Hours a finished game is kept. Default 24.                               |
+| `NEW_GAMES_PER_HOUR`   | How many new games one client address may start per hour (in bursts of up to 10). Default 30; 0 turns it off. |
+| `MAX_GAMES`            | The most games kept at once; beyond that new games are turned away. Default 5000; 0 turns it off. |
+| `CLIENT_IP_HEADER`     | The header holding the real client address when behind a proxy, e.g. `CF-Connecting-IP`. Only set it when the proxy is trusted to set it. |
+| `HSTS_MAX_AGE`         | Seconds for a `Strict-Transport-Security` header. Off by default; turn it on once the site is served over HTTPS. |
+
+## Security
+
+- **Strict Content-Security-Policy** on every response: only this site's own scripts, styles, fonts and images,
+  sockets back to the same host, no inline scripts or styles, no framing. Along with `X-Content-Type-Options`,
+  `X-Frame-Options` and `Referrer-Policy`. (This is why the theme is set by a small file, `theme-init.js`, and not an
+  inline script: don't add inline scripts or styles to the pages.)
+- **Runs as an unprivileged user** (uid 10001) in the container. A named volume on `/data` just works; a bind-mounted
+  host directory has to be writable by that uid (`chown 10001 ./data`). If it isn't, the server stops at startup and
+  says so.
+- **Limits** keep a public instance from being filled with junk: new games per client address per hour, a cap on the
+  total games kept, and a cap on messages per connection per second (excess is ignored).
 
 ## Releasing
 

@@ -48,6 +48,11 @@ class SqliteStore:
     def __init__(self, path):
         directory = os.path.dirname(os.path.abspath(path))
         os.makedirs(directory, exist_ok=True)
+        if not os.access(directory, os.W_OK):
+            raise PermissionError(
+                f"The data directory {directory} isn't writable by this user, so games can't be saved. "
+                "Fix its permissions (the Docker image runs as uid 10001), or set DATA_DIR to somewhere else."
+            )
 
         self._lock = Lock()
         # one connection shared by the server's threads, guarded by the lock

@@ -10,6 +10,7 @@ from flask import Flask, abort, jsonify, redirect, request, send_from_directory
 from flask_socketio import ConnectionRefusedError, SocketIO, emit
 
 from game import MAX_PATH_LENGTH, IllegalMove
+from ratelimit import RateLimiter
 from registry import Refused, Registry
 from store import open_store
 from variants import VARIANTS
@@ -59,8 +60,45 @@ app.config["STATIC_DIR"] = path.abspath(getenv("STATIC_DIR", path.join(BASE_DIR,
 # DATA_DIR), so run one worker.
 socketio = SocketIO(app, async_mode="threading", cors_allowed_origins=allowed_origins())
 
+def int_from_environment(name, default):
+    value = getenv(name)
+    return int(value) if value not in (None, "") else default
+
+
+# Limits that keep a public server from being filled with junk (0 turns a limit off)
+NEW_GAMES_PER_HOUR = int_from_environment("NEW_GAMES_PER_HOUR", 30)  # per client address
+MAX_GAMES = int_from_environment("MAX_GAMES", 5000)  # games saved at once, in total
+MESSAGES_PER_SECOND = 50  # per connection, sustained; short bursts of twice that are fine
+# Behind a proxy every request comes from the proxy, so the real address is in a header
+# (Cloudflare uses CF-Connecting-IP). Only set this when the proxy is trusted to set it.
+CLIENT_IP_HEADER = getenv("CLIENT_IP_HEADER") or None
+
+new_game_limiter = (
+    RateLimiter(NEW_GAMES_PER_HOUR / 3600, burst=min(NEW_GAMES_PER_HOUR, 10)) if NEW_GAMES_PER_HOUR > 0 else None
+)
+message_limiter = RateLimiter(MESSAGES_PER_SECOND, burst=2 * MESSAGES_PER_SECOND)
+
 # DATA_DIR is where games are saved so they survive a restart; set it empty to keep them in memory only
-registry = Registry(open_store(getenv("DATA_DIR", path.join(BASE_DIR, "data"))), ttl=ttl_from_environment())
+registry = Registry(
+    open_store(getenv("DATA_DIR", path.join(BASE_DIR, "data"))),
+    ttl=ttl_from_environment(),
+    max_games=MAX_GAMES or None,
+)
+
+
+def client_address():
+    """Who this request is from, for rate limiting."""
+    if CLIENT_IP_HEADER:
+        forwarded = request.headers.get(CLIENT_IP_HEADER, "")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def guard_new_game():
+    """Called before a brand-new game is made: one address can't make them without limit."""
+    if new_game_limiter is not None and not new_game_limiter.allow(client_address()):
+        raise Refused("You have started a lot of games. Please wait a while before starting another.", "rate-limited")
 
 
 # Which build this is. The Docker image sets these (see the Dockerfile); elsewhere they are "dev".
@@ -143,6 +181,7 @@ def handle_connect(auth=None):
             resume=auth.get("resume") is True,
             side=auth.get("side"),
             variant_key=variant_key,
+            before_create=guard_new_game,
         )
     except Refused as refusal:
         # Refusing the connection tells the client why via connect_error: the message
@@ -168,6 +207,7 @@ def handle_connect(auth=None):
 def handle_disconnect(reason=None):
     # Leaving doesn't end the game: the player can come back with their token.
     # Their opponent is just told they are away.
+    message_limiter.forget(request.sid)
     detached = registry.detach(request.sid)
     if detached and detached.offline and detached.record.game:
         opponent = registry.opponent_token(detached.record, detached.token)
@@ -180,6 +220,9 @@ def handle_disconnect(reason=None):
 
 @socketio.on("message")
 def handle_message(message):
+    if not message_limiter.allow(request.sid):
+        return  # a client sending this much is broken or hostile; ignore the excess
+
     session = registry.session(request.sid)
     if session is None:
         emit("error", {"error": "Not in a game"})
@@ -267,6 +310,51 @@ def handle_resign(record, seat):
 
     registry.save(record)
     broadcast_state(record)
+
+
+# --- security headers ---------------------------------------------------------
+
+# Strict transport security only makes sense once the site is served over HTTPS, which a
+# proxy such as Cloudflare usually does, so it is opt-in: set HSTS_MAX_AGE (seconds).
+HSTS_MAX_AGE = int_from_environment("HSTS_MAX_AGE", 0)
+
+
+# what a Host header may look like before it is put into the policy (it is chosen by the client)
+HOST_PATTERN = re.compile(r"[A-Za-z0-9.-]+(:[0-9]{1,5})?")
+
+
+def content_security_policy(host):
+    """Only this site's own scripts, styles, fonts and images (plus the data: images the
+    stylesheet draws its patterns with), and sockets back to this same host. Nothing inline."""
+    # 'self' covers same-origin sockets in current browsers; naming the host helps older ones
+    sockets = f" ws://{host} wss://{host}" if HOST_PATTERN.fullmatch(host or "") else ""
+    return "; ".join(
+        [
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self'",
+            "img-src 'self' data:",
+            "font-src 'self'",
+            f"connect-src 'self'{sockets}",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+        ]
+    )
+
+
+@app.after_request
+def add_security_headers(response):
+    headers = response.headers
+    headers.setdefault("Content-Security-Policy", content_security_policy(request.host))
+    headers.setdefault("X-Content-Type-Options", "nosniff")
+    headers.setdefault("X-Frame-Options", "DENY")
+    headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+    if HSTS_MAX_AGE > 0:
+        headers.setdefault("Strict-Transport-Security", f"max-age={HSTS_MAX_AGE}")
+    return response
 
 
 # --- serving the client -------------------------------------------------------

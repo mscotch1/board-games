@@ -33,6 +33,6 @@ export const SPRITE = `
 export function installSprite() {
   document.body.insertAdjacentHTML(
     'afterbegin',
-    `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>${SPRITE}</defs></svg>`,
+    `<svg class="sprite-sheet" width="0" height="0" aria-hidden="true" focusable="false"><defs>${SPRITE}</defs></svg>`,
   );
 }
