@@ -1,7 +1,9 @@
 from dotenv import load_dotenv
 from flask import Flask, request, send_from_directory, render_template_string, abort
-from flask_socketio import SocketIO, emit, send
+from flask_socketio import SocketIO, emit
 from os import path, listdir, getenv
+
+from lobby import JoinResult, Lobby
 
 load_dotenv()
 
@@ -37,50 +39,46 @@ INDEX_TEMPLATE = """
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = getenv("SECRET_KEY")
-socketio = SocketIO(app)
+# Threading mode (with simple-websocket) works under gunicorn's gthread worker
+# without monkey patching. Game state is in process memory, so run one worker.
+socketio = SocketIO(app, async_mode="threading")
 
-clients = {}
-new_game_codes = {}
+lobby = Lobby()
 
 
 @socketio.on("connect")
-def handle_connect(socket):
-    game_code = request.headers["Game-Code"]
+def handle_connect(auth=None):
+    game_code = request.headers.get("Game-Code")
+    if not game_code:
+        raise ConnectionRefusedError({"error": "Missing Game-Code header"})
 
-    if game_code not in clients or game_code not in new_game_codes:
-        emit("error", {"error": "Game code not found or game already full"})
+    result, opponent_sid = lobby.join(game_code, request.sid)
 
-    if game_code in new_game_codes:
-        opponent_sid = new_game_codes.pop(game_code)
-        clients[request.sid] = opponent_sid
-        clients[opponent_sid] = request.sid
+    if result is JoinResult.FULL:
+        # Refusing the connection tells the client why via connect_error.
+        raise ConnectionRefusedError({"error": "Game already full"})
+    if result is JoinResult.PAIRED:
         emit("message", {"topic": "game-ready", "message": {"assignment": "1"}}, to=opponent_sid)
         emit("message", {"topic": "game-ready", "message": {"assignment": "2"}}, to=request.sid)
-    else:
-        new_game_codes[game_code] = request.sid
-    print(clients)
 
 
 @socketio.on("disconnect")
-def handle_disconnect():
-    print("disconnect")
-    if request.sid in clients:
-        emit("message", "disconnected", to=clients[request.sid])
-        del clients[request.sid]
-
-        keys_to_remove = [key for key, value in new_game_codes.items() if value == request.sid]
-        for key in keys_to_remove:
-            del new_game_codes[key]
-    print(clients)
+def handle_disconnect(reason=None):
+    opponent_sid = lobby.leave(request.sid)
+    if opponent_sid is not None:
+        emit("message", {"topic": "opponent-disconnected", "message": {}}, to=opponent_sid)
 
 
 @socketio.on("message")
 def handle_message(message):
-    print("Received message: " + str(message))
-    emit("message", message, to=clients[request.sid])
+    opponent_sid = lobby.opponent(request.sid)
+    if opponent_sid is None:
+        emit("error", {"error": "No opponent connected"})
+        return
+    emit("message", message, to=opponent_sid)
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET"])
 def home():
     games = listdir(GAMES_DIR)
     return render_template_string(INDEX_TEMPLATE, games=games)
