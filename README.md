@@ -46,6 +46,18 @@ knight's charges and mandatory capture are the same as in Camelot. What differs:
 - **Your own castle:** you can't plain-move or canter into it, but you can jump into it. A piece that
   jumps in and can't jump on must leave on your next turn, ahead of any other move (jumping out if it can).
 
+## Playing the computer
+
+Choose *Computer* (easy, medium or hard) when starting a game. The server plays that side with a search (negamax with
+alpha-beta pruning, in `ai.py`) over the same rules engine the players use, so it can only make legal moves. The levels
+differ in thinking time and in how often a weaker, near-best move is chosen; hard thinks for about a second a move and
+should be beatable by a decent casual player. It accepts a draw only when it is clearly losing. Computer games are saved
+and resumable like any other, and cost nothing when it isn't the computer's turn.
+
+The search is CPU work in the one server process, so at most `BOT_SEARCHES` (default 2) computer moves are worked out at
+once and the rest wait. The evaluation weights (`DEFAULT_WEIGHTS` in `ai.py`) were set by hand; `python selfplay.py speed`
+and `python selfplay.py match camelot` let you measure the search and watch it play itself.
+
 ## Leaving and coming back
 
 Games are saved after every move, so nothing is lost to a reload, a dropped connection or a server restart.
@@ -159,6 +171,7 @@ Restarting or replacing the container keeps every game, as long as `/data` is a 
 | `BACKUP_INTERVAL_HOURS` | Hours between backups of the saved games. Default 24; 0 turns backups off. |
 | `BACKUP_KEEP`          | How many backups to keep (the newest). Default 7; 0 keeps them all.      |
 | `BACKUP_DIR`           | Where backups go. Defaults to `backups/` inside `DATA_DIR`.               |
+| `BOT_SEARCHES`         | How many computer moves are worked out at once. Default 2. |
 | `NEW_GAMES_PER_HOUR`   | How many new games one client address may start per hour (in bursts of up to 10). Default 30; 0 turns it off. |
 | `MAX_GAMES`            | The most games kept at once; beyond that new games are turned away. Default 5000; 0 turns it off. |
 | `CLIENT_IP_HEADER`     | The header holding the real client address when behind a proxy, e.g. `CF-Connecting-IP`. Only set it when the proxy is trusted to set it. |

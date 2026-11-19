@@ -60,14 +60,17 @@ function keepInAddressBar(code) {
   history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({ gamecode: code })}`);
 }
 
-function start(code, side, variant) {
+const COMPUTER_LEVELS = ['easy', 'medium', 'hard'];
+const levelName = (level) => level.charAt(0).toUpperCase() + level.slice(1);
+
+function start(code, side, variant, computer) {
   currentCode = code;
   keepInAddressBar(code);
 
   // Remember who we are before anything is sent: a reload before the server has answered
   // must come back as the same player. The entry stays pending until the server confirms it.
   if (!getGame(code)) {
-    saveGame(code, { token: newToken(), side, variant, pending: true });
+    saveGame(code, { token: newToken(), side, variant, computer: computer ?? null, pending: true });
   }
   const { token } = getGame(code);
 
@@ -79,7 +82,15 @@ function start(code, side, variant) {
   // The token is how the server knows who we are, including after a reload or a restart.
   // `resume` says we have been in this game before, so a game that has gone is an error
   // and not a new game; it is only set once the server has confirmed the game to us.
-  connection = connect(() => ({ code, token, resume: Boolean(getGame(code)) && !getGame(code).pending, side, variant }));
+  // (a computer opponent is only asked for when the game is being made, which is while it is pending)
+  connection = connect(() => {
+    const saved = getGame(code);
+    const auth = { code, token, resume: Boolean(saved) && !saved.pending, side, variant };
+    if (saved?.pending && saved.computer) {
+      auth.computer = saved.computer;
+    }
+    return auth;
+  });
 
   connection.onRefused((reason, reasonCode) => {
     if (reasonCode === 'not-found' || getGame(code)?.pending) {
@@ -94,9 +105,16 @@ function start(code, side, variant) {
   connection.on('waiting', () => {
     saveGame(code, { token, variant, pending: false });
   });
-  connection.on('game-ready', ({ side: yourSide, state, chat, opponentConnected }) => {
-    saveGame(code, { token, side: yourSide, variant: state.variant, over: isOver(state), pending: false });
-    begin(code, yourSide, state, chat, opponentConnected);
+  connection.on('game-ready', ({ side: yourSide, state, chat, opponentConnected, computer: level }) => {
+    saveGame(code, {
+      token,
+      side: yourSide,
+      variant: state.variant,
+      computer: level ?? null,
+      over: isOver(state),
+      pending: false,
+    });
+    begin(code, yourSide, state, chat, opponentConnected, level ?? null);
     if (isOver(state)) {
       showResult(); // coming back to a finished game shows how it ended
     }
@@ -146,7 +164,8 @@ function start(code, side, variant) {
 $('new-game').addEventListener('submit', (event) => {
   event.preventDefault();
   const form = new FormData(event.target);
-  start(newGameCode(), form.get('side'), form.get('variant'));
+  const opponent = form.get('opponent');
+  start(newGameCode(), form.get('side'), form.get('variant'), COMPUTER_LEVELS.includes(opponent) ? opponent : undefined);
 });
 
 $('join-game').addEventListener('submit', (event) => {
@@ -184,8 +203,18 @@ for (const dialog of document.querySelectorAll('dialog')) {
 
 // --- game -------------------------------------------------------------------
 
-function begin(code, side, state, chat = [], opponentConnected = true) {
-  session = { code, side, state, path: [], pending: false, opponentPath: [], opponentHover: null, opponentConnected };
+function begin(code, side, state, chat = [], opponentConnected = true, computer = null) {
+  session = {
+    code,
+    side,
+    state,
+    computer,
+    path: [],
+    pending: false,
+    opponentPath: [],
+    opponentHover: null,
+    opponentConnected,
+  };
   $('notice').textContent = '';
   $('chat-log').replaceChildren();
   chat.forEach((message) => addChat(message.text, message.side === side));
@@ -329,7 +358,7 @@ function renderStatus(myTurn) {
     status.textContent = `Your move (${SIDE_NAMES[side]})`;
     status.className = 'status yours';
   } else {
-    status.textContent = `Opponent's move (${SIDE_NAMES[state.turn]})`;
+    status.textContent = `${session.computer ? "Computer's" : "Opponent's"} move (${SIDE_NAMES[state.turn]})`;
     status.className = 'status theirs';
   }
 
@@ -349,7 +378,8 @@ function renderPlayers() {
       <span class="count" title="Pieces left">${counts[owner]}</span>
     </div>`;
 
-  $('players').innerHTML = row('You', side) + row('Opponent', otherSide(side), !session.opponentConnected);
+  const them = session.computer ? `Computer (${levelName(session.computer)})` : 'Opponent';
+  $('players').innerHTML = row('You', side) + row(them, otherSide(side), !session.opponentConnected);
 }
 
 function renderControls(myTurn) {
@@ -366,7 +396,11 @@ function renderControls(myTurn) {
   if (isOver(state)) {
     hint = 'The game is over.';
   } else if (!myTurn) {
-    hint = session.pending ? 'Sending your move…' : 'Waiting for your opponent to move.';
+    hint = session.pending
+      ? 'Sending your move…'
+      : session.computer
+        ? 'The computer is thinking…'
+        : 'Waiting for your opponent to move.';
   } else if (path.length === 0) {
     if (mustCapture(state.legal)) {
       hint = 'You must capture. Pick one of the highlighted pieces.';
@@ -448,6 +482,9 @@ function showResult() {
     connection.close();
     forgetGame(code);
     const next = new URLSearchParams({ gamecode: rematchCode(code), side: otherSide(side), variant: state.variant });
+    if (session.computer) {
+      next.set('computer', session.computer);
+    }
     location.href = `${location.pathname}?${next}`;
   };
 
@@ -492,14 +529,15 @@ function renderResumeList() {
       const name = document.createElement('strong');
       name.textContent = VARIANT_NAMES[game.variant] ?? 'Game';
       const detail = document.createElement('small');
-      detail.textContent = `${game.side ? `As ${SIDE_NAMES[game.side]}` : 'Waiting for an opponent'} · ${game.code}`;
+      const versus = game.computer ? `Computer (${levelName(game.computer)}) · ` : '';
+      detail.textContent = `${versus}${game.side ? `As ${SIDE_NAMES[game.side]}` : 'Waiting for an opponent'} · ${game.code}`;
       info.append(name, detail);
 
       const resume = document.createElement('button');
       resume.className = 'btn';
       resume.type = 'button';
       resume.textContent = 'Resume';
-      resume.addEventListener('click', () => start(game.code, game.side, game.variant));
+      resume.addEventListener('click', () => start(game.code, game.side, game.variant, game.computer ?? undefined));
 
       const forget = document.createElement('button');
       forget.className = 'forget';
@@ -523,7 +561,8 @@ function renderResumeList() {
 const params = new URLSearchParams(location.search);
 const wantedVariant = params.get('variant') ?? undefined;
 if (params.get('gamecode')) {
-  start(params.get('gamecode'), params.get('side') ?? 'random', wantedVariant);
+  const level = params.get('computer');
+  start(params.get('gamecode'), params.get('side') ?? 'random', wantedVariant, COMPUTER_LEVELS.includes(level) ? level : undefined);
 } else {
   renderResumeList();
   if (wantedVariant) {

@@ -19,6 +19,7 @@ from threading import RLock
 from typing import NamedTuple
 
 import rules
+from ai import LEVELS
 from game import Game
 from variants import DEFAULT_VARIANT, VARIANTS
 
@@ -57,6 +58,8 @@ class Record:
         self.created_at = now
         self.updated_at = now
         self.seats = None  # {side: token} once an opponent has joined
+        self.bot = None  # the computer opponent's level ("easy", "medium", "hard"), if there is one
+        self.bot_token = None  # the computer's seat token; no human ever holds it
         self.game = None
         self.chat = []  # [{"side": ..., "text": ...}], the most recent CHAT_LIMIT
 
@@ -80,6 +83,8 @@ class Record:
             "createdAt": self.created_at,
             "updatedAt": self.updated_at,
             "seats": self.seats,
+            "bot": self.bot,
+            "botToken": self.bot_token,
             "game": self.game.to_dict() if self.game else None,
             "chat": self.chat,
         }
@@ -92,6 +97,10 @@ class Record:
             record = cls(data["code"], data["variant"], data["creatorToken"], data["creatorSide"], data["createdAt"])
             record.updated_at = data["updatedAt"]
             record.seats = data["seats"]
+            record.bot = data.get("bot")
+            record.bot_token = data.get("botToken")
+            if record.bot is not None and (record.bot not in LEVELS or not record.bot_token):
+                raise ValueError("the saved computer opponent isn't valid")
             record.game = Game.from_dict(data["game"]) if data["game"] is not None else None
             record.chat = [{"side": m["side"], "text": m["text"]} for m in data["chat"]]
             if record.game is not None and not (record.seats and set(record.seats) == {rules.WHITE, rules.BLACK}):
@@ -136,14 +145,16 @@ class Registry:
 
     # --- connecting -----------------------------------------------------------
 
-    def attach(self, sid, code, *, token=None, resume=False, side=None, variant_key=None, before_create=None):
+    def attach(self, sid, code, *, token=None, resume=False, side=None, variant_key=None, computer=None,
+               before_create=None):
         """Connect `sid` to the game `code`. Raises Refused.
 
         `token` is the player's secret. A token that belongs to the game means a returning
         player. Otherwise this is a new player: the creator of a new game, or the opponent
         joining a waiting one, and their token (made up here if they didn't bring one)
         is theirs from now on. `resume` says the player has been in this game before, so
-        a game that can't be found is an error rather than a new game. `before_create`, if given,
+        a game that can't be found is an error rather than a new game. `computer`, for a new game, is
+        the level of a computer opponent, who takes the other seat at once. `before_create`, if given,
         is called just before a brand-new game is made, and may raise Refused to stop it.
         """
         with self._lock:
@@ -168,6 +179,10 @@ class Registry:
                 creator_side = side if side in (rules.WHITE, rules.BLACK) else None
                 record = Record(code, variant.key, token, creator_side, self._clock())
                 self._records[code] = record
+                if computer in LEVELS:
+                    record.bot, record.bot_token = computer, self._new_token()
+                    self._start(record, record.bot_token)  # saves the game
+                    return Attached("resumed", record, token, self._connect(sid, record, token))
                 self.save(record)
                 return Attached("waiting", record, token, self._connect(sid, record, token))
 
@@ -246,6 +261,8 @@ class Registry:
             return sorted(self._sids.get((record.code, token), ()))
 
     def online(self, record, token):
+        if record.bot_token is not None and token == record.bot_token:
+            return True  # the computer is always there
         return bool(self.sids(record, token))
 
     def _owns(self, record, token):

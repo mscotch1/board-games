@@ -1,8 +1,10 @@
 import logging
+import random
 import re
 import time
 from datetime import datetime, timezone
 from os import getenv, path
+from threading import BoundedSemaphore, Lock
 
 from dotenv import load_dotenv
 from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory
@@ -10,6 +12,7 @@ from flask import Flask, Response, abort, jsonify, redirect, request, send_from_
 # python-socketio only passes a refusal reason on to the client for its own exception
 from flask_socketio import ConnectionRefusedError, SocketIO, emit
 
+import ai
 from game import MAX_PATH_LENGTH, IllegalMove
 from backups import start_backups
 from ratelimit import RateLimiter
@@ -70,6 +73,9 @@ def int_from_environment(name, default):
 # Limits that keep a public server from being filled with junk (0 turns a limit off)
 NEW_GAMES_PER_HOUR = int_from_environment("NEW_GAMES_PER_HOUR", 30)  # per client address
 MAX_GAMES = int_from_environment("MAX_GAMES", 5000)  # games saved at once, in total
+# How many computer moves may be worked out at the same time. Searching is CPU work in this one
+# process, so more would slow every game down; the rest wait their turn.
+BOT_SEARCHES = max(int_from_environment("BOT_SEARCHES", 2), 1)
 MESSAGES_PER_SECOND = 50  # per connection, sustained; short bursts of twice that are fine
 # Behind a proxy every request comes from the proxy, so the real address is in a header
 # (Cloudflare uses CF-Connecting-IP). Only set this when the proxy is trusted to set it.
@@ -134,7 +140,7 @@ def valid_path(value, size):
 def send_to_player(record, token, payload):
     """Send to every connection the player holding `token` has open."""
     for sid in registry.sids(record, token):
-        emit("message", payload, to=sid)
+        socketio.emit("message", payload, to=sid)  # (not emit(), so this works from a background task too)
 
 
 def ready_message(record, token):
@@ -148,6 +154,7 @@ def ready_message(record, token):
             "state": record.game.snapshot(),
             "chat": record.chat,
             "opponentConnected": registry.online(record, opponent),
+            "computer": record.bot,  # the level, when the opponent is the computer
         },
     }
 
@@ -183,6 +190,10 @@ def handle_connect(auth=None):
     if variant_key is not None and (not isinstance(variant_key, str) or variant_key not in VARIANTS):
         raise ConnectionRefusedError("Unknown game variant", {"code": "unknown-variant"})
 
+    computer = auth.get("computer")
+    if computer is not None and computer not in ai.LEVELS:
+        raise ConnectionRefusedError("Unknown computer level", {"code": "unknown-level"})
+
     try:
         attached = registry.attach(
             request.sid,
@@ -191,6 +202,7 @@ def handle_connect(auth=None):
             resume=auth.get("resume") is True,
             side=auth.get("side"),
             variant_key=variant_key,
+            computer=computer,
             before_create=guard_new_game,
         )
     except Refused as refusal:
@@ -211,6 +223,7 @@ def handle_connect(auth=None):
         opponent = registry.opponent_token(record, token)
         if attached.first_connection and opponent:
             send_to_player(record, opponent, presence_message(True))
+        schedule_computer(record)  # it may be the computer's move: it just started, or the server restarted
 
 
 @socketio.on("disconnect")
@@ -285,6 +298,7 @@ def handle_end_turn(record, seat, body):
 
     registry.save(record)
     broadcast_state(record)
+    schedule_computer(record)
 
 
 def handle_draw(topic, record, seat, opponent, body):
@@ -309,6 +323,82 @@ def handle_draw(topic, record, seat, opponent, body):
     broadcast_state(record)
     if declined:
         send_to_player(record, opponent, {"topic": "draw-declined", "message": {}})
+    elif topic == "offer-draw" and record.bot is not None and not game.over:
+        computer_answers_draw(record, seat)
+
+
+# --- the computer opponent ----------------------------------------------------
+
+COMPUTER_PAUSE = 0.4  # seconds, so its reply doesn't land the instant the player's move does
+ACCEPTS_DRAW_WHEN_BEHIND = 250  # hundredths of a man; it only agrees to a draw when it is losing
+
+computer_slots = BoundedSemaphore(BOT_SEARCHES)
+computer_busy = set()  # codes of the games whose computer move is being worked out
+computer_busy_lock = Lock()
+
+
+def computer_seat(record):
+    for side, token in (record.seats or {}).items():
+        if token == record.bot_token:
+            return side
+    return None
+
+
+def schedule_computer(record):
+    """If it is the computer's turn in this game, start working out its move in the background."""
+    game = record.game
+    if record.bot is None or game is None or game.over or game.turn != computer_seat(record):
+        return
+    with computer_busy_lock:
+        if record.code in computer_busy:
+            return
+        computer_busy.add(record.code)
+    socketio.start_background_task(play_computer_turn, record)
+
+
+def play_computer_turn(record):
+    try:
+        with computer_slots:
+            time.sleep(COMPUTER_PAUSE)
+            game, seat = record.game, computer_seat(record)
+            if game.over or game.turn != seat:
+                return
+            legal = game.legal_turns
+            try:
+                turn = ai.choose_turn(
+                    game.variant, list(game.board), seat, dict(game.castle_moves), legal,
+                    level=record.bot, seen=ai.game_seen(game),
+                )
+            except Exception:
+                log.exception("the computer's search failed in game %s; playing a random turn", record.code)
+                turn = random.choice(legal)
+            try:
+                game.play_turn(seat, list(turn.moves))
+            except IllegalMove:
+                return  # the game moved on while it was thinking (the player resigned, say)
+            registry.save(record)
+            broadcast_state(record)
+    except Exception:
+        log.exception("the computer couldn't play in game %s", record.code)
+    finally:
+        with computer_busy_lock:
+            computer_busy.discard(record.code)
+    # the same thread can't be asked to move twice in a row, but the player may have moved meanwhile
+    schedule_computer(record)
+
+
+def computer_answers_draw(record, human):
+    """The computer takes a draw only when it is clearly worse off; otherwise it declines."""
+    game, seat = record.game, computer_seat(record)
+    accept = ai.evaluate(game.variant, game.board, seat) < -ACCEPTS_DRAW_WHEN_BEHIND
+    try:
+        game.respond_to_draw(seat, accept)
+    except IllegalMove:
+        return
+    registry.save(record)
+    broadcast_state(record)
+    if not accept:
+        send_to_player(record, record.seats[human], {"topic": "draw-declined", "message": {}})
 
 
 def handle_resign(record, seat):

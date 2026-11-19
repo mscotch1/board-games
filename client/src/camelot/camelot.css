@@ -85,6 +85,10 @@ a.ext::after {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.choices.opponents {
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+}
+
 .choices.variants {
   grid-template-columns: repeat(2, 1fr);
 }
