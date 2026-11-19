@@ -47,24 +47,37 @@
   gap: 0.25rem;
 }
 
-.sides {
+.choices {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-.sides legend {
+.choices.sides {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.choices.variants {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.choice-title {
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.choices legend {
   padding: 0;
   margin-bottom: 0.5rem;
   color: var(--muted);
   font-size: 0.875rem;
 }
 
-.sides label {
+.choices label {
   position: relative;
+  text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -78,28 +91,28 @@
   transition: transform 0.15s, border-color 0.15s;
 }
 
-.sides label:hover {
+.choices label:hover {
   transform: translateY(-2px);
 }
 
-.sides label small {
+.choices label small {
   margin-top: -0.25rem;
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 400;
 }
 
-.sides label:has(input:checked) {
+.choices label:has(input:checked) {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-.sides label:has(input:focus-visible) {
+.choices label:has(input:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.sides input {
+.choices input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
@@ -506,9 +519,10 @@
   }
 
   .board-wrap {
-    width: min(100%, calc((100dvh - 7rem) * 0.77));
+    /* --board-ratio (width over height of the board) is set from the game's board */
+    width: min(100%, calc((100dvh - 7rem) * var(--board-ratio, 0.77)));
     margin: 0 auto;
-    aspect-ratio: 13.48 / 17.48;
+    aspect-ratio: var(--board-ratio, 0.77);
   }
 
   .chat {

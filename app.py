@@ -9,6 +9,7 @@ from flask_socketio import ConnectionRefusedError, SocketIO, emit
 import rules
 from game import MAX_PATH_LENGTH, Game, IllegalMove
 from lobby import JoinResult, Lobby
+from variants import DEFAULT_VARIANT, VARIANTS
 
 load_dotenv()
 
@@ -38,14 +39,15 @@ socketio = SocketIO(app, async_mode="threading", cors_allowed_origins=allowed_or
 lobby = Lobby()
 sessions = {}  # sid -> (Game, side), for players currently paired
 requested_sides = {}  # sid -> side the waiting player asked for
+requested_variants = {}  # sid -> variant the waiting player asked for
 
 
-def valid_square(value):
-    return type(value) is int and 0 <= value < rules.ROWS * rules.COLS
+def valid_square(value, size):
+    return type(value) is int and 0 <= value < size
 
 
-def valid_path(value):
-    return isinstance(value, list) and len(value) <= MAX_PATH_LENGTH and all(valid_square(v) for v in value)
+def valid_path(value, size):
+    return isinstance(value, list) and len(value) <= MAX_PATH_LENGTH and all(valid_square(v, size) for v in value)
 
 
 @socketio.on("connect")
@@ -56,13 +58,20 @@ def handle_connect(auth=None):
         raise ConnectionRefusedError("Missing game code", {"code": "missing-code"})
     game_code = game_code.strip()
 
+    # Only the player who creates the game gets to choose the variant; whoever joins plays it.
+    variant_key = auth.get("variant")
+    if variant_key is not None and (not isinstance(variant_key, str) or variant_key not in VARIANTS):
+        raise ConnectionRefusedError("Unknown game variant", {"code": "unknown-variant"})
+
     # Whoever gets here first picks a side; anything else means "random". This is
     # recorded before joining so a quick opponent can't pair up before it is stored.
     requested_sides[request.sid] = auth.get("side") if auth.get("side") in (rules.WHITE, rules.BLACK) else None
+    requested_variants[request.sid] = VARIANTS.get(variant_key)
     result, opponent_sid = lobby.join(game_code, request.sid)
 
     if result is JoinResult.FULL:
         requested_sides.pop(request.sid, None)
+        requested_variants.pop(request.sid, None)
         # Refusing the connection tells the client why via connect_error: the message
         # becomes error.message and the data error.data (which a network failure lacks).
         raise ConnectionRefusedError("Game already full", {"code": "full"})
@@ -71,8 +80,10 @@ def handle_connect(auth=None):
         return
 
     requested_sides.pop(request.sid, None)
+    requested_variants.pop(request.sid, None)
+    variant = requested_variants.pop(opponent_sid, None) or DEFAULT_VARIANT
     creator_side = requested_sides.pop(opponent_sid, None) or random.choice((rules.WHITE, rules.BLACK))
-    game = Game()
+    game = Game(variant)
     sessions[opponent_sid] = (game, creator_side)
     sessions[request.sid] = (game, rules.other(creator_side))
     for sid, (_, side) in ((opponent_sid, sessions[opponent_sid]), (request.sid, sessions[request.sid])):
@@ -83,6 +94,7 @@ def handle_connect(auth=None):
 def handle_disconnect(reason=None):
     sessions.pop(request.sid, None)
     requested_sides.pop(request.sid, None)
+    requested_variants.pop(request.sid, None)
     opponent_sid = lobby.leave(request.sid)
     if opponent_sid is not None:
         sessions.pop(opponent_sid, None)
@@ -103,9 +115,9 @@ def handle_message(message):
 
     if topic == "end-turn":
         handle_end_turn(body, session, opponent_sid)
-    elif topic == "preview" and valid_path(body.get("moves")):
+    elif topic == "preview" and valid_path(body.get("moves"), session[0].variant.size):
         emit("message", {"topic": "opponent-preview", "message": {"moves": body["moves"]}}, to=opponent_sid)
-    elif topic == "hover" and (body.get("index") is None or valid_square(body.get("index"))):
+    elif topic == "hover" and (body.get("index") is None or valid_square(body.get("index"), session[0].variant.size)):
         emit("message", {"topic": "opponent-hover", "message": {"index": body.get("index")}}, to=opponent_sid)
     elif topic == "chat" and isinstance(body.get("text"), str):
         text = body["text"].strip()[:MAX_CHAT_LENGTH]

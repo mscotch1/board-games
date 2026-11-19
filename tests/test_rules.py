@@ -1,7 +1,19 @@
 import pytest
 
 import rules
-from rules import BLACK, COLS, INITIAL_BOARD, WHITE, Turn, apply_turn, find_winner, legal_turns
+from rules import BLACK, WHITE, Turn, apply_turn
+from variants import CAMELOT as V
+
+COLS = V.cols
+INITIAL_BOARD = V.initial
+
+
+def legal_turns(board, side):
+    return rules.legal_turns(V, board, side)
+
+
+def find_winner(board):
+    return rules.find_winner(V, board)
 
 
 def sq(row, col):
@@ -9,7 +21,7 @@ def sq(row, col):
 
 
 def board_with(pieces):
-    board = [0] * (rules.ROWS * COLS)
+    board = [0] * (V.rows * COLS)
     for (row, col), piece in pieces.items():
         board[sq(row, col)] = piece
     return board
@@ -27,15 +39,15 @@ def paths(turns):
 
 
 def test_board_shape():
-    assert len(rules.BOARD_MASK) == len(INITIAL_BOARD) == rules.ROWS * rules.COLS
-    assert sum(rules.BOARD_MASK) == 160
-    assert all(INITIAL_BOARD[i] == 0 or rules.BOARD_MASK[i] for i in range(len(INITIAL_BOARD)))
+    assert len(V.mask) == len(INITIAL_BOARD) == V.rows * V.cols
+    assert sum(V.mask) == 160
+    assert all(INITIAL_BOARD[i] == 0 or V.mask[i] for i in range(len(INITIAL_BOARD)))
 
 
 def test_castle_squares_are_the_end_squares():
-    assert rules.TOP_CASTLE == (sq(0, 5), sq(0, 6))
-    assert rules.BOTTOM_CASTLE == (sq(15, 5), sq(15, 6))
-    assert rules.GOAL_CASTLE[WHITE] == rules.TOP_CASTLE == rules.HOME_CASTLE[BLACK]
+    assert V.home_castle[BLACK] == (sq(0, 5), sq(0, 6))
+    assert V.home_castle[WHITE] == (sq(15, 5), sq(15, 6))
+    assert V.goal_castle[WHITE] == V.home_castle[BLACK]
 
 
 def test_each_side_starts_with_ten_men_and_four_knights():
@@ -46,16 +58,16 @@ def test_each_side_starts_with_ten_men_and_four_knights():
 
 
 def test_adjacent_squares_respect_edges_and_mask():
-    assert sorted(rules.adjacent_squares(sq(0, 5))) == sorted([sq(0, 6), sq(1, 4), sq(1, 5), sq(1, 6)])
+    assert sorted(V.adjacent_squares(sq(0, 5))) == sorted([sq(0, 6), sq(1, 4), sq(1, 5), sq(1, 6)])
     # the left edge must not wrap around to the previous row
-    assert rules.adjacent_squares(sq(3, 0)) == [sq(2, 1), sq(3, 1), sq(4, 0), sq(4, 1)]
-    assert rules.adjacent_squares(0) == []
+    assert V.adjacent_squares(sq(3, 0)) == [sq(2, 1), sq(3, 1), sq(4, 0), sq(4, 1)]
+    assert V.adjacent_squares(0) == []
 
 
 def test_jumpable_squares_respect_edges_and_mask():
-    assert sorted(rules.jumpable_squares(sq(3, 0))) == sorted([sq(1, 2), sq(3, 2), sq(5, 0), sq(5, 2)])
-    assert all(rules.BOARD_MASK[i] for i in rules.jumpable_squares(sq(1, 2)))
-    assert -5 not in rules.jumpable_squares(sq(0, 5))
+    assert sorted(V.jumpable_squares(sq(3, 0))) == sorted([sq(1, 2), sq(3, 2), sq(5, 0), sq(5, 2)])
+    assert all(V.mask[i] for i in V.jumpable_squares(sq(1, 2)))
+    assert -5 not in V.jumpable_squares(sq(0, 5))
 
 
 # --- plain moves ------------------------------------------------------------
@@ -284,8 +296,8 @@ def test_capturing_every_piece_wins():
 def random_board(rng):
     density = rng.choice([0.05, 0.15, 0.3, 0.5])
     return [
-        rng.choice([1, 2, 3, 4]) if rules.BOARD_MASK[i] and rng.random() < density else 0
-        for i in range(rules.ROWS * COLS)
+        rng.choice([1, 2, 3, 4]) if V.mask[i] and rng.random() < density else 0
+        for i in range(V.rows * COLS)
     ]
 
 
@@ -303,7 +315,7 @@ def test_legal_turns_are_consistent_on_random_boards():
             for turn in turns:
                 assert rules.owner(board[turn.moves[0]]) == side
                 assert len(turn.jumped) == len(turn.moves) - 1
-                assert all(rules.BOARD_MASK[m] for m in turn.moves)
+                assert all(V.mask[m] for m in turn.moves)
 
                 jumped = [j for j in turn.jumped if j is not None]
                 assert len(jumped) == len(set(jumped))
@@ -316,7 +328,7 @@ def test_legal_turns_are_consistent_on_random_boards():
                 if turn.is_capture:
                     # a capture must be played out: nothing more can be jumped from where it ends
                     end = turn.moves[-1]
-                    for landing in rules.jumpable_squares(end):
+                    for landing in V.jumpable_squares(end):
                         over = (end + landing) // 2
                         extendable = (
                             after[landing] == 0

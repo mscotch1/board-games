@@ -1,6 +1,6 @@
 # Monka Games
 
-Two-player board games played in the browser. Right now there is one game, Camelot.
+Two-player board games played in the browser: Camelot, and its pocket cousin Cam.
 
 A Flask + Socket.IO server owns each game (it knows the rules and validates every
 move); the client is a small Vite-built page that draws the board and sends moves.
@@ -22,6 +22,34 @@ a side (or leaves it random), and *Play again* swaps colours.
   castle (a jump may land there), and a piece inside the enemy castle can only leave it by jumping.
 - **Winning:** occupy both squares of the enemy castle, capture every enemy piece, or leave your
   opponent with no legal move.
+
+## Cam rules
+
+Cam is Parker Brothers' 1949 miniature of Camelot (rules from the
+[World Camelot Federation](http://www.worldcamelotfederation.com/Cam_Rules.htm)). Moves, canters, jumps,
+knight's charges and mandatory capture are the same as in Camelot. What differs:
+
+- **Board:** 67 squares (7 files, 13 ranks) with a single castle square at each end, D1 and D13.
+- **Pieces:** 2 knights and 5 men a side.
+- **Winning:** move any one piece into the enemy castle (the turn ends the moment it gets there), or
+  capture every enemy piece.
+- **Your own castle:** you can't plain-move or canter into it, but you can jump into it. A piece that
+  jumps in and can't jump on must leave on your next turn, ahead of any other move (jumping out if it can).
+
+## Adding a variant
+
+Boards, starting positions and the few rule options live in `variants.py`; the rules engine in `rules.py`
+takes a `Variant` and nothing else is board-specific, so the client draws whatever board the server sends.
+A new variant is a `Variant(...)` entry plus tests, and a choice in the lobby.
+
+## Known differences from the official Camelot rules
+
+Camelot here follows the standard rules as agreed for this project, which differ from the World Camelot
+Federation's published rules in a few places: a piece in the enemy castle may leave it by jumping (officially
+it may never come out, may only move between the two castle squares twice, and a jump into the enemy castle
+ends the turn), a piece that jumps into its own castle isn't forced to leave next turn, and winning by capture
+or by blocking the opponent doesn't require keeping two pieces (and the official game has draws). The
+variant options in `rules.py` already support most of these.
 
 ## Development
 

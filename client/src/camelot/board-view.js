@@ -11,6 +11,11 @@ const FRAME = 18; // how far the gold frame reaches past the squares
 
 const FILES = 'abcdefghijklmnopqrstuvwxyz';
 
+/** The width of the whole drawing (frame and labels included) divided by its height. */
+export function boardRatio({ rows, cols }) {
+  return (cols * CELL + 2 * MARGIN) / (rows * CELL + 2 * MARGIN);
+}
+
 /** Where square `index` is drawn, in cells from the top left, for the given side. */
 export function displayCell(index, { rows, cols }, side) {
   const row = Math.floor(index / cols);

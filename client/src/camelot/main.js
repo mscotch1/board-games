@@ -1,6 +1,6 @@
 import { connect } from '../shared/connection.js';
 import { mountThemePickers } from '../shared/theme.js';
-import { createBoardView } from './board-view.js';
+import { boardRatio, createBoardView } from './board-view.js';
 import './camelot.css';
 import { rematchCode } from './rematch.js';
 import { installSprite } from './sprite.js';
@@ -56,13 +56,13 @@ function showProblem(text) {
   }
 }
 
-function start(code, side) {
+function start(code, side, variant) {
   $('menu').hidden = true;
   $('waiting').hidden = false;
   $('invite-link').textContent = inviteLink(code);
   $('game-code').textContent = code;
 
-  connection = connect({ code, side });
+  connection = connect({ code, side, variant });
   connection.onRefused((reason) => showProblem(`Could not join the game: ${reason}.`));
   connection.onLost(() => {
     if (!session?.state.winner) {
@@ -101,7 +101,8 @@ function start(code, side) {
 
 $('new-game').addEventListener('submit', (event) => {
   event.preventDefault();
-  start(newGameCode(), new FormData(event.target).get('side'));
+  const form = new FormData(event.target);
+  start(newGameCode(), form.get('side'), form.get('variant'));
 });
 
 $('join-game').addEventListener('submit', (event) => {
@@ -138,6 +139,8 @@ for (const dialog of document.querySelectorAll('dialog')) {
 
 function begin(code, side, state) {
   session = { code, side, state, path: [], pending: false, opponentPath: [], opponentHover: null };
+  // the game on the other end decides which game this is, whatever the lobby said
+  $('brand-name').textContent = state.variantName;
   $('lobby').hidden = true;
   $('game').hidden = false;
   render();
@@ -226,6 +229,8 @@ function render() {
     }
   }
 
+  $('board').parentElement.style.setProperty('--board-ratio', boardRatio(state));
+
   view.render({
     rows: state.rows,
     cols: state.cols,
@@ -263,7 +268,7 @@ function renderStatus(myTurn) {
     status.className = 'status theirs';
   }
 
-  document.title = myTurn ? 'Your move | Camelot' : 'Camelot | Monka Games';
+  document.title = myTurn ? `Your move | ${state.variantName}` : `${state.variantName} | Monka Games`;
 }
 
 function renderPlayers() {
@@ -295,9 +300,13 @@ function renderControls(myTurn) {
   } else if (!myTurn) {
     hint = session.pending ? 'Sending your move…' : 'Waiting for your opponent to move.';
   } else if (path.length === 0) {
-    hint = mustCapture(state.legal)
-      ? 'You must capture. Pick one of the highlighted pieces.'
-      : 'Pick one of the highlighted pieces to move.';
+    if (mustCapture(state.legal)) {
+      hint = 'You must capture. Pick one of the highlighted pieces.';
+    } else if (pieceInOwnCastle()) {
+      hint = 'The piece in your castle must leave it. Pick it to move.';
+    } else {
+      hint = 'Pick one of the highlighted pieces to move.';
+    }
   } else if (!complete) {
     hint = 'Keep going: pick the next square.';
   } else if (nextSquares(state.legal, path).size > 0) {
@@ -308,14 +317,29 @@ function renderControls(myTurn) {
   $('hint').textContent = hint;
 }
 
+/** Whether one of the player's pieces is standing in the castle it started beside. */
+function pieceInOwnCastle() {
+  const { state, side } = session;
+  const home = side === 'white' ? state.castles.bottom : state.castles.top;
+  return home.some((square) => state.board[square] && pieceOwner(state.board[square]) === side);
+}
+
 // --- result -----------------------------------------------------------------
 
 function showResult() {
   const { state, side, code } = session;
   const won = state.winner === side;
 
+  const bothTowers = state.castleToWin > 1;
+  const castle = bothTowers
+    ? won
+      ? 'Huzzah! Both towers of the enemy castle fly your colours.'
+      : 'Your opponent has taken both towers of the castle.'
+    : won
+      ? 'Huzzah! One of your pieces has reached the enemy castle.'
+      : 'An enemy piece has reached your castle.';
   const reasons = {
-    castle: won ? 'Huzzah! Both towers of the enemy castle fly your colours.' : 'Your opponent has taken both towers of the castle.',
+    castle,
     capture: won ? 'Huzzah! Not a single enemy piece is left standing.' : 'Not a single one of your pieces is left standing.',
     blocked: won ? 'Huzzah! Your opponent is hemmed in with no move to make.' : 'You are hemmed in with no move to make.',
   };
@@ -326,7 +350,8 @@ function showResult() {
   // the next game swaps colours: whoever clicks first creates it and asks for the other side
   $('play-again').onclick = () => {
     connection.close();
-    location.href = `${location.pathname}?gamecode=${encodeURIComponent(rematchCode(code))}&side=${otherSide(side)}`;
+    const next = new URLSearchParams({ gamecode: rematchCode(code), side: otherSide(side), variant: state.variant });
+    location.href = `${location.pathname}?${next}`;
   };
 
   $('over').showModal();
@@ -356,6 +381,13 @@ $('chat-form').addEventListener('submit', (event) => {
 // --- go ---------------------------------------------------------------------
 
 const params = new URLSearchParams(location.search);
+const wantedVariant = params.get('variant') ?? undefined;
 if (params.get('gamecode')) {
-  start(params.get('gamecode'), params.get('side') ?? 'random');
+  start(params.get('gamecode'), params.get('side') ?? 'random', wantedVariant);
+} else if (wantedVariant) {
+  // a link from the front page to one of the games
+  const radio = document.querySelector(`input[name=variant][value="${wantedVariant}"]`);
+  if (radio) {
+    radio.checked = true;
+  }
 }

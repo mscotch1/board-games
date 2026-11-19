@@ -8,7 +8,7 @@
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  max-width: 44rem;
+  max-width: 50rem;
   margin: 0 auto;
   padding: 5.5rem 1rem 11rem;
   text-align: center;
@@ -28,6 +28,7 @@
 
 .games {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
   gap: 1rem;
   width: 100%;
   margin: 2rem 0 0;

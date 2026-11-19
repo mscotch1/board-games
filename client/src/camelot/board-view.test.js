@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boardMarkup, displayCell, squareName } from './board-view.js';
+import { boardMarkup, boardRatio, displayCell, squareName } from './board-view.js';
 
 const geometry = { rows: 16, cols: 12 };
 
@@ -147,5 +147,20 @@ describe('board decoration', () => {
     const markup = boardMarkup({ ...view, side: 'black' });
     expect(count(markup, 'castle-icon black')).toBe(2);
     expect(count(markup, 'castle-icon white')).toBe(2);
+  });
+});
+
+describe('board proportions', () => {
+  it('is wider for a wider board and taller for a taller one', () => {
+    const camelot = boardRatio({ rows: 16, cols: 12 });
+    const cam = boardRatio({ rows: 13, cols: 7 });
+    expect(camelot).toBeGreaterThan(0.7);
+    expect(camelot).toBeLessThan(0.8);
+    expect(cam).toBeLessThan(camelot);
+  });
+
+  it('is width over height of the viewBox, margins included', () => {
+    expect(boardRatio({ rows: 4, cols: 4 })).toBe(1);
+    expect(boardRatio({ rows: 2, cols: 4 })).toBeCloseTo((400 + 148) / (200 + 148));
   });
 });

@@ -2,7 +2,10 @@ import pytest
 
 import app as app_module
 import rules
-from rules import BLACK, COLS, WHITE
+from rules import BLACK, WHITE
+from variants import CAMELOT
+
+COLS = CAMELOT.cols
 
 
 def sq(row, col):
@@ -14,6 +17,7 @@ def fresh_state(monkeypatch):
     monkeypatch.setattr(app_module, "lobby", app_module.Lobby())
     monkeypatch.setattr(app_module, "sessions", {})
     monkeypatch.setattr(app_module, "requested_sides", {})
+    monkeypatch.setattr(app_module, "requested_variants", {})
 
 
 def connect(code="abc", side=None):
@@ -86,7 +90,7 @@ def test_two_players_get_game_ready_with_the_full_state():
     assert ready_a["state"] == ready_b["state"]
 
     state = ready_a["state"]
-    assert state["board"] == list(rules.INITIAL_BOARD)
+    assert state["board"] == list(CAMELOT.initial)
     assert state["turn"] == WHITE and state["winner"] is None
     assert state["legal"]
 
@@ -228,7 +232,7 @@ def test_out_of_turn_move_is_rejected_to_the_sender_only():
     end_turn(black, [sq(6, 4), sq(7, 4)])
     assert messages(black) == [("move-rejected", {"error": "It is not your turn"})]
     assert white.get_received() == []
-    assert current_game().board == list(rules.INITIAL_BOARD)
+    assert current_game().board == list(CAMELOT.initial)
 
 
 def test_illegal_move_is_rejected_and_nothing_changes():
@@ -244,7 +248,7 @@ def test_skipping_a_mandatory_capture_is_rejected():
     game = current_game()
     game.board = [0] * 192
     game.board[sq(9, 4)], game.board[sq(8, 4)], game.board[sq(12, 2)] = 1, 3, 1
-    game._legal = rules.legal_turns(game.board, WHITE)
+    game._legal = rules.legal_turns(game.variant, game.board, WHITE)
 
     end_turn(white, [sq(12, 2), sq(11, 2)])
     assert "must capture" in messages(white)[0][1]["error"]
@@ -266,7 +270,7 @@ def test_winning_turn_reports_the_winner_and_ends_the_game():
     game = current_game()
     game.board = [0] * 192
     game.board[sq(9, 4)], game.board[sq(8, 4)] = 1, 3
-    game._legal = rules.legal_turns(game.board, WHITE)
+    game._legal = rules.legal_turns(game.variant, game.board, WHITE)
 
     end_turn(white, [sq(9, 4), sq(7, 4)])
 
@@ -391,3 +395,101 @@ def test_refusing_a_missing_code_tells_the_client_why():
 def test_refusing_a_full_game_tells_the_client_why():
     pair(code="full-game")
     assert refusal({"code": "full-game"}) == {"message": "Game already full", "data": {"code": "full"}}
+
+
+# --- choosing a variant -----------------------------------------------------
+
+
+def connect_with(variant, code="abc", side=None):
+    auth = {"code": code, "variant": variant}
+    if side:
+        auth["side"] = side
+    return app_module.socketio.test_client(app_module.app, auth=auth)
+
+
+def ready_state(client):
+    (topic, message), = messages(client)
+    assert topic == "game-ready"
+    return message["state"]
+
+
+def test_games_are_camelot_unless_the_creator_asks_for_another():
+    a, b = connect(), connect()
+    assert ready_state(a)["variant"] == "camelot"
+    assert ready_state(b)["variant"] == "camelot"
+
+
+def test_the_creator_can_ask_for_cam():
+    a, b = connect_with("cam"), connect()
+    state_a, state_b = ready_state(a), ready_state(b)
+    assert state_a == state_b
+    assert (state_a["variant"], state_a["variantName"]) == ("cam", "Cam")
+    assert (state_a["rows"], state_a["cols"]) == (13, 7)
+    assert sum(1 for p in state_a["board"] if p) == 14
+    assert current_game().variant.key == "cam"
+
+
+def test_whoever_joins_plays_the_creators_variant():
+    a, b = connect_with("cam"), connect_with("camelot")
+    assert ready_state(a)["variant"] == ready_state(b)["variant"] == "cam"
+
+
+def test_a_joiner_asking_for_cam_gets_the_creators_camelot_game():
+    a, b = connect_with("camelot"), connect_with("cam")
+    assert ready_state(b)["variant"] == "camelot"
+
+
+@pytest.mark.parametrize("variant", ["checkers", "", "CAM", 3, ["cam"], {"cam": 1}])
+def test_unknown_variants_are_refused(variant):
+    assert not connect_with(variant).is_connected()
+    assert app_module.requested_variants == {}
+
+
+def test_the_unknown_variant_refusal_says_why():
+    from socketio.exceptions import ConnectionRefusedError as SocketIORefusal
+
+    with app_module.app.test_request_context():
+        app_module.request.sid = "new-player"
+        with pytest.raises(SocketIORefusal) as raised:
+            app_module.handle_connect({"code": "abc", "variant": "checkers"})
+    assert raised.value.error_args == {"message": "Unknown game variant", "data": {"code": "unknown-variant"}}
+
+
+def test_requested_variants_do_not_leak():
+    connect_with("cam")  # waiting
+    assert len(app_module.requested_variants) == 1
+    pair(code="other")
+    assert len(app_module.requested_variants) == 1  # only the first, still-waiting player's
+
+    waiting = connect_with("cam", code="third")
+    waiting.disconnect()
+    assert len(app_module.requested_variants) == 1
+
+
+def test_a_cam_game_is_played_with_cam_rules():
+    white, black = connect_with("cam", side=WHITE), connect()
+    white.get_received(), black.get_received()
+
+    from variants import cam_square
+
+    end_turn(white, [cam_square("B5"), cam_square("B6")])
+    (topic, update), = messages(black)
+    assert topic == "game-state"
+    assert update["state"]["variant"] == "cam"
+    assert update["state"]["board"][cam_square("B6")] == 1
+
+
+def test_hover_and_preview_are_checked_against_the_games_own_board():
+    # index 100 is on the Camelot board but off the 91-square Cam board
+    a, b = connect_with("cam"), connect()
+    a.get_received(), b.get_received()
+    a.emit("message", {"topic": "hover", "message": {"index": 100}})
+    a.emit("message", {"topic": "preview", "message": {"moves": [1, 100]}})
+    assert b.get_received() == []
+
+    a.emit("message", {"topic": "hover", "message": {"index": 90}})
+    assert messages(b) == [("opponent-hover", {"index": 90})]
+
+    c, d = pair(code="camelot-game")
+    c.emit("message", {"topic": "hover", "message": {"index": 100}})
+    assert messages(d) == [("opponent-hover", {"index": 100})]

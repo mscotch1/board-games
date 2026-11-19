@@ -40,7 +40,21 @@
 
         <section id="menu" class="stack">
           <form id="new-game" class="stack">
-            <fieldset class="sides">
+            <fieldset class="choices variants">
+              <legend>Game</legend>
+              <label>
+                <input type="radio" name="variant" value="camelot" checked />
+                <span class="choice-title display">Camelot</span>
+                <small>14 pieces a side. Take both castle squares.</small>
+              </label>
+              <label>
+                <input type="radio" name="variant" value="cam" />
+                <span class="choice-title display">Cam</span>
+                <small>The pocket version: 7 pieces, and one in the castle wins.</small>
+              </label>
+            </fieldset>
+
+            <fieldset class="choices sides">
               <legend>Play as</legend>
               <label>
                 <input type="radio" name="side" value="white" />
@@ -87,7 +101,7 @@
       <header class="topbar">
         <a class="brand display" href="/games/camelot/" data-leaves-game>
           <svg class="crest" viewBox="0 0 100 120" aria-hidden="true"><use href="#crest" /></svg>
-          <span>Camelot</span>
+          <span id="brand-name">Camelot</span>
         </a>
         <div id="status" class="status" role="status" aria-live="polite"></div>
         <a class="home-link" href="/" data-leaves-game title="All games"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg><span>All games</span></a>

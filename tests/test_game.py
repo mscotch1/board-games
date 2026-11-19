@@ -2,7 +2,10 @@ import pytest
 
 import rules
 from game import MAX_PATH_LENGTH, Game, IllegalMove
-from rules import BLACK, COLS, WHITE
+from rules import BLACK, WHITE
+from variants import CAMELOT
+
+COLS = CAMELOT.cols
 
 
 def sq(row, col):
@@ -15,7 +18,7 @@ def game_with(pieces, turn=WHITE):
     for (row, col), piece in pieces.items():
         game.board[sq(row, col)] = piece
     game.turn = turn
-    game._legal = rules.legal_turns(game.board, turn)
+    game._legal = rules.legal_turns(game.variant, game.board, turn)
     return game
 
 
@@ -23,8 +26,8 @@ def test_new_game_starts_with_white():
     game = Game()
     assert game.turn == WHITE
     assert game.winner is None
-    assert game.board == list(rules.INITIAL_BOARD)
-    assert game.legal_turns == rules.legal_turns(game.board, WHITE)
+    assert game.board == list(CAMELOT.initial)
+    assert game.legal_turns == rules.legal_turns(game.variant, game.board, WHITE)
 
 
 def test_legal_turn_updates_board_and_passes_the_turn():
@@ -35,7 +38,7 @@ def test_legal_turn_updates_board_and_passes_the_turn():
     assert game.board[sq(9, 4)] == 0
     assert game.turn == BLACK
     assert game.winner is None
-    assert game.legal_turns == rules.legal_turns(game.board, BLACK)
+    assert game.legal_turns == rules.legal_turns(game.variant, game.board, BLACK)
 
 
 def test_players_alternate():
@@ -50,7 +53,7 @@ def test_cannot_play_out_of_turn():
     game = Game()
     with pytest.raises(IllegalMove, match="not your turn"):
         game.play_turn(BLACK, [sq(6, 4), sq(7, 4)])
-    assert game.board == list(rules.INITIAL_BOARD)
+    assert game.board == list(CAMELOT.initial)
 
 
 def test_cannot_move_the_opponents_piece_or_an_empty_square():
@@ -65,7 +68,7 @@ def test_illegal_move_leaves_the_game_unchanged():
     game = Game()
     with pytest.raises(IllegalMove, match="not allowed"):
         game.play_turn(WHITE, [sq(9, 4), sq(5, 4)])
-    assert game.board == list(rules.INITIAL_BOARD)
+    assert game.board == list(CAMELOT.initial)
     assert game.turn == WHITE
     assert game.last_turn is None
 
@@ -90,7 +93,7 @@ def test_malformed_paths_are_rejected(moves):
     game = Game()
     with pytest.raises(IllegalMove):
         game.play_turn(WHITE, moves)
-    assert game.board == list(rules.INITIAL_BOARD)
+    assert game.board == list(CAMELOT.initial)
 
 
 def test_a_shorter_path_than_the_full_jump_chain_is_rejected():
@@ -121,8 +124,8 @@ def test_snapshot_describes_the_game_for_clients():
     game.play_turn(WHITE, [sq(10, 2), sq(11, 2)])
     snapshot = game.snapshot()
 
-    assert snapshot["rows"] == rules.ROWS and snapshot["cols"] == rules.COLS
-    assert snapshot["mask"] == list(rules.BOARD_MASK)
+    assert snapshot["rows"] == CAMELOT.rows and snapshot["cols"] == CAMELOT.cols
+    assert snapshot["mask"] == list(CAMELOT.mask)
     assert snapshot["board"] == game.board
     assert snapshot["turn"] == BLACK
     assert snapshot["winner"] is None and snapshot["winReason"] is None
