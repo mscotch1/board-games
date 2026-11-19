@@ -1,5 +1,5 @@
-import { initThemeToggle } from './shared/theme.js';
+import { mountThemePickers } from './shared/theme.js';
 import { installSprite } from './camelot/sprite.js';
 
 installSprite();
-initThemeToggle(document.querySelector('.theme-toggle'));
+mountThemePickers(document.querySelectorAll('[data-theme-picker]'));

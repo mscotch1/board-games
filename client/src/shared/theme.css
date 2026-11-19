@@ -268,28 +268,42 @@ p {
   background: transparent;
 }
 
-.icon-btn {
-  display: inline-grid;
-  place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  padding: 0;
+/* the light / system / dark picker: three round buttons in a pill */
+.theme-picker {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
   border: 1px solid var(--border);
-  border-radius: 50%;
+  border-radius: 999px;
   background: var(--surface);
-  color: var(--accent);
+}
+
+.theme-picker button {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.3s;
+  transition: background 0.15s, color 0.15s;
 }
 
-.icon-btn:hover {
-  border-color: var(--accent);
-  transform: rotate(18deg);
+.theme-picker button:hover {
+  color: var(--accent);
 }
 
-.icon-btn svg {
-  width: 1.3rem;
-  height: 1.3rem;
+.theme-picker button[aria-pressed='true'] {
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  color: var(--accent-ink);
+}
+
+.theme-picker svg {
+  width: 1.15rem;
+  height: 1.15rem;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -297,18 +311,35 @@ p {
   stroke-linejoin: round;
 }
 
-/* the sun shows in the dark theme (it switches to light), the moon in the light one */
-.theme-toggle .moon,
-:root[data-effective='light'] .theme-toggle .sun {
-  display: none;
+/* a pill that takes the player back to the main site */
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
 }
 
-:root[data-effective='light'] .theme-toggle .moon {
-  display: block;
+.home-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.theme-toggle .moon {
-  fill: currentColor;
+.home-link svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 input[type='text'],

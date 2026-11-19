@@ -1,5 +1,5 @@
 import { connect } from '../shared/connection.js';
-import { initThemeToggle } from '../shared/theme.js';
+import { mountThemePickers } from '../shared/theme.js';
 import { createBoardView } from './board-view.js';
 import './camelot.css';
 import { rematchCode } from './rematch.js';
@@ -9,7 +9,22 @@ import { exactTurn, isFinished, mustCapture, nextSquares, startSquares, captured
 const $ = (id) => document.getElementById(id);
 
 installSprite();
-document.querySelectorAll('.theme-toggle').forEach((button) => initThemeToggle(button));
+mountThemePickers(document.querySelectorAll('[data-theme-picker]'));
+
+// leaving a game that is still going ends it for the opponent too, so check first
+document.querySelectorAll('[data-leaves-game]').forEach((link) => {
+  link.addEventListener('click', (event) => {
+    if (!session || session.state.winner) {
+      return;
+    }
+    if (confirm('Leave this game? Your opponent will be disconnected.')) {
+      // say goodbye properly, so the opponent finds out straight away
+      connection.close();
+    } else {
+      event.preventDefault();
+    }
+  });
+});
 
 const SIDE_NAMES = { white: 'White', black: 'Black' };
 const otherSide = (side) => (side === 'white' ? 'black' : 'white');
