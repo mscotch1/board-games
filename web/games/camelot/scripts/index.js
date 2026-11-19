@@ -50,6 +50,25 @@ $(document).ready(async () => {
         });
     });
 
+    // Show a blocking message with a way back to the menu.
+    const showError = (text) => {
+        document.getElementById('errortext').innerText = text;
+        $(document.getElementById('waitmodal')).modal('hide');
+        $(document.getElementById('errormodal')).modal('show');
+    };
+
+    socket.subscribe('connect_error', ({ error }) => {
+        showError(`Could not join game: ${error}`);
+    });
+
+    socket.subscribe('opponent-disconnected', () => {
+        // After the game has finished the end screen is already showing.
+        if (stateManager.getState('game/winner')?.winner) {
+            return;
+        }
+        showError('Your opponent disconnected.');
+    });
+
     let assignment;
     {
         const waitModal = $(document.getElementById('waitmodal'));

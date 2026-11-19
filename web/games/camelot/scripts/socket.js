@@ -27,6 +27,14 @@ export default class Socket {
             console.warn('socket disconnected!');
         });
 
+        // Refused by the server (e.g. the game is full); err.data carries the reason.
+        this.socket.on('connect_error', (err) => {
+            console.error('socket connection refused:', err.message);
+            this.subs.get('connect_error')?.forEach((callback) => callback({
+                error: err.data?.error ?? err.message,
+            }));
+        });
+
         this.socket.on('message', ({ topic, message }) => {
             this.subs.get(topic)?.forEach((callback) => callback(message));
         });
