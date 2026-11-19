@@ -15,10 +15,13 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # to create the GitHub release
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      # lets the runner build the arm64 image too (Raspberry Pi, Apple silicon servers)
+      - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
 
@@ -43,6 +46,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           # shown in the page footer and reported by /version
           build-args: |
@@ -54,3 +58,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # a GitHub release for the tag, with notes written from the commits and pull requests since the last one
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            Image: `ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}` (amd64 and arm64)

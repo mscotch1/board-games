@@ -34,3 +34,34 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  # Builds the real image and starts it, so a mistake in the Dockerfile (a file it forgets to copy,
+  # a permission it needs) fails here and not on the first deployment.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: board-games:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start it and check it works
+        run: |
+          docker run -d --name board-games -p 5000:5000 board-games:ci
+          for attempt in $(seq 1 30); do
+            curl -fsS http://localhost:5000/healthz && break
+            sleep 1
+          done
+          curl -fsS http://localhost:5000/healthz | grep '"status":"ok"'
+          curl -fsS http://localhost:5000/version
+          curl -fsS http://localhost:5000/games/camelot/rules/ | grep -q 'How to play'
+          curl -fsSI http://localhost:5000/ | grep -i '^content-security-policy'
+          test "$(docker exec board-games id -u)" = "10001"
+          docker exec board-games sh -c 'touch /data/writable-check && rm /data/writable-check'
+      - name: Show the container's log if something failed
+        if: failure()
+        run: docker logs board-games

@@ -122,7 +122,27 @@ volumes:
 ```
 
 (If the package is private, `docker login ghcr.io` first.) The container serves everything on
-port 5000 and has a `/healthz` endpoint.
+port 5000 and has a `/healthz` endpoint. A fuller example, with the optional settings, is in
+`docker-compose.example.yml`. The image is built for both amd64 and arm64, so it runs on a Raspberry Pi or an
+Apple-silicon machine as well.
+
+### Behind Cloudflare
+
+To host this behind Cloudflare (a proxied DNS record, or a Cloudflare Tunnel to the container):
+
+- Set `CLIENT_IP_HEADER=CF-Connecting-IP`, so the new-games limit counts real visitors and not Cloudflare's addresses.
+  Only do this when the container can *only* be reached through Cloudflare (a tunnel, or a firewall that allows
+  Cloudflare's ranges), because anyone who can reach it directly could forge the header.
+- WebSockets must be on (they are by default); the game doesn't work without them. Keep the SSL/TLS mode on *Full
+  (strict)* if the origin has a certificate, and turn on *Always Use HTTPS*. Once everything works over HTTPS, set
+  `HSTS_MAX_AGE` so browsers insist on it.
+- Caching: `/assets/*` files are content-hashed and sent with a one-year `immutable` cache header, so a *Cache
+  Everything* rule for `/assets/*` is safe and takes most of the load. Don't cache anything else: pages revalidate
+  with an ETag, and `/socket.io/`, `/healthz` and `/version` must never be cached.
+- Add a *rate limiting rule* for `/socket.io/` (for example 100 requests per 10 seconds per IP) as a first line of
+  defence. The server has its own limits too (see Security).
+- If the proxy changes the `Host` header, the socket check will refuse connections; either preserve it (a Tunnel
+  does) or list the public address in `CORS_ALLOWED_ORIGINS`.
 
 Games are held in the server's memory and saved to a SQLite file in `DATA_DIR` (`/data` in the image), so the
 server **must run as a single worker** (the Dockerfile already does: one gunicorn worker with 100 threads).
@@ -197,7 +217,9 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The workflow tests the code, builds the image and publishes it to GHCR. The build is stamped with the tag, the
+The workflow tests the code (including building the real image and starting it, which catches Dockerfile mistakes
+before they reach a deployment), builds the image for amd64 and arm64, publishes it to GHCR, and creates a GitHub release
+with notes written from the commits and pull requests since the last one. The build is stamped with the tag, the
 commit and the time (the `APP_VERSION`, `APP_COMMIT` and `APP_BUILT` build arguments), and that stamp appears:
 
 - in the footer of every page: `Monka Games · v1.0.0 · a1b2c3d · built 19 Nov 2026` (hover for the full commit and time);
@@ -208,3 +230,12 @@ commit and the time (the `APP_VERSION`, `APP_COMMIT` and `APP_BUILT` build argum
 
 A build outside the release workflow (`npm run build`, a local `docker build`) says `dev build`, or uses
 `git describe` when there is a repository.
+
+To get link previews with absolute URLs, add a repository variable named `SITE_URL` (Settings, Secrets and variables,
+Actions, Variables) with the public address, such as `https://games.example.com`.
+
+### Keeping up to date
+
+The base images in the Dockerfile are pinned by digest, so a build is repeatable and a change in an upstream image can't
+slip in unnoticed. Dependabot opens weekly pull requests for the Python and npm dependencies, the GitHub Actions and those
+image digests; the CI checks run on each, so most updates are a matter of reading the summary and merging.
