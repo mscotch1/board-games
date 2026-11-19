@@ -19,6 +19,14 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: pytest
 
+      # requirements.txt pins every package the server uses, and is generated from requirements.in;
+      # this fails if someone edited one without regenerating the other
+      - uses: astral-sh/setup-uv@v5
+      - name: requirements.txt is up to date with requirements.in
+        run: |
+          uv pip compile requirements.in --python-platform linux --python-version 3.12 -o requirements.txt
+          git diff --exit-code requirements.txt
+
   client:
     runs-on: ubuntu-latest
     defaults:

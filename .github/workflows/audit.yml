@@ -1,0 +1,35 @@
+name: Security audit
+
+# Checks the pinned dependencies against the public vulnerability databases every week, and
+# on demand. It is its own workflow, not part of CI, so a newly published advisory doesn't
+# fail an unrelated pull request: it shows up here, and Dependabot proposes the fix.
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Audit the packages the image installs
+        run: uvx pip-audit --requirement requirements.txt --no-deps --disable-pip
+
+  npm:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Audit what is shipped to browsers
+        run: npm audit --omit=dev

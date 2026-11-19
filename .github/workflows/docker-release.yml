@@ -1,11 +1,22 @@
-name: Publish Docker image
+name: Release
 
-# Pushing a version tag (e.g. v1.2.0) tests the code, then builds the image and
-# pushes it to ghcr.io/<owner>/<repo> as 1.2.0, 1.2 and latest.
+# Pushing a version tag (e.g. v1.2.0) tests the code, builds the image for amd64 and arm64,
+# pushes it to ghcr.io/<owner>/<repo>, and creates a GitHub release with notes written from
+# the commits since the last release.
+#
+#   git tag v1.2.0 && git push origin v1.2.0
+#
+# A tag with a suffix (v1.2.0-rc.1) is a pre-release: it gets its own image tag and a release
+# marked as a pre-release, but doesn't move `latest`.
 on:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
+
+# never run two releases at once, and never cancel one half way through
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -17,8 +28,24 @@ jobs:
     permissions:
       contents: write # to create the GitHub release
       packages: write
+    env:
+      PRERELEASE: ${{ contains(github.ref_name, '-') }}
     steps:
+      # the whole history, so the next step can check which branch the tag is on
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the tag
+        run: |
+          if ! echo "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$GITHUB_REF_NAME' is not a version like v1.2.0 or v1.2.0-rc.1"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::'$GITHUB_REF_NAME' is not on the main branch; release from main"
+            exit 1
+          fi
 
       # lets the runner build the arm64 image too (Raspberry Pi, Apple silicon servers)
       - uses: docker/setup-qemu-action@v3
@@ -38,7 +65,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ env.PRERELEASE != 'true' }}
 
       - name: Note when this was built
         run: echo "APP_BUILT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
@@ -48,11 +75,13 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          # shown in the page footer and reported by /version
+          # shown in the page footer and reported by /version; the repository and site address
+          # make the footer's links and the link previews
           build-args: |
             APP_VERSION=${{ github.ref_name }}
             APP_COMMIT=${{ github.sha }}
             APP_BUILT=${{ env.APP_BUILT }}
+            REPO_URL=${{ github.server_url }}/${{ github.repository }}
             SITE_URL=${{ vars.SITE_URL }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -63,5 +92,14 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ env.PRERELEASE == 'true' }}
+          make_latest: ${{ env.PRERELEASE != 'true' }}
           body: |
-            Image: `ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}` (amd64 and arm64)
+            ## Run it
+
+            ```sh
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
+            ```
+
+            The image is built for amd64 and arm64. See the README for the compose file, the settings and how to
+            put it behind Cloudflare.

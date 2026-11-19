@@ -14,6 +14,9 @@ ARG APP_COMMIT=
 ARG APP_BUILT=
 # The public address (e.g. https://games.example.com), for link previews and canonical links
 ARG SITE_URL=
+# Where the source is, for the footer's Source and Report-an-issue links (the AGPL asks that
+# users can get the source). Not set, it is this project's own repository.
+ARG REPO_URL
 RUN npm run build
 
 # The server, with the built client

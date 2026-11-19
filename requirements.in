@@ -1,0 +1,8 @@
+# The packages the server needs directly, with the versions it is known to work with.
+# requirements.txt is generated from this file and pins everything, so builds are repeatable:
+#   uv pip compile requirements.in --python-platform linux --python-version 3.12 -o requirements.txt
+flask>=3.1.3,<4
+flask-socketio>=5.7,<6
+python-dotenv>=1.2.2,<2
+simple-websocket>=1.0,<2
+gunicorn>=23,<24
