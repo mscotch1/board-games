@@ -8,12 +8,16 @@
   z-index: 1;
   display: grid;
   place-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
   min-height: 100dvh;
   padding: 4.5rem 1rem 10rem;
 }
 
 .lobby-card {
   width: min(30rem, 100%);
+  min-width: 0;
+  justify-self: center;
 }
 
 .lobby-head {
@@ -719,5 +723,83 @@ a.ext::after {
   .crest {
     width: 3.4rem;
     height: 4.1rem;
+  }
+}
+
+/* phones: the menu card is snugger, and the footer sits under it instead of floating over it */
+
+@media (max-width: 600px) {
+  .lobby {
+    padding: 4.5rem 0.75rem 5.5rem;
+  }
+
+  .lobby-card.card {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 420px) {
+  /* the game header has no room for the wordmark as well as the status and buttons */
+  .topbar .brand {
+    display: none;
+  }
+
+  .status {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* a phone held sideways: the board beside everything else, not above it, and as tall as the screen allows */
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .game {
+    height: 100dvh;
+    min-height: 0;
+    padding: 0.4rem 0.75rem 0.4rem;
+    gap: 0.35rem;
+  }
+
+  .topbar {
+    min-height: 2rem;
+    gap: 0.5rem;
+  }
+
+  .brand {
+    font-size: 1.4rem;
+  }
+
+  .topbar .home-link {
+    padding: 0.3rem 0.6rem;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 21rem);
+    gap: 0.75rem;
+  }
+
+  .board-wrap {
+    width: auto;
+    margin: 0;
+    aspect-ratio: auto;
+  }
+
+  .side {
+    gap: 0.5rem;
+    overflow-y: auto;
+    padding-right: 0.15rem;
+  }
+
+  .panel {
+    padding: 0.6rem;
+  }
+
+  .chat {
+    min-height: 9rem;
+  }
+
+  .game .site-footer {
+    font-size: 0.65rem;
   }
 }

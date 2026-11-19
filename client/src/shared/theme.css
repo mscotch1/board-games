@@ -466,3 +466,17 @@ dialog .row {
     transition: none !important;
   }
 }
+
+/* phones: the pill would cover the page's content, so the footer sits under it instead */
+@media (max-width: 600px) {
+  .site-footer.floating {
+    position: static;
+    width: auto;
+    max-width: none;
+    margin: 0.5rem auto 0;
+    padding: 0 0.75rem 1rem;
+    transform: none;
+    border: 0;
+    background: none;
+  }
+}

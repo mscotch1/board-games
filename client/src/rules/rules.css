@@ -262,3 +262,16 @@ a.ext::after {
     white-space: normal;
   }
 }
+
+/* small phones: the comparison table gets the width the card padding was using */
+@media (max-width: 480px) {
+  .rules-section {
+    padding: 0.9rem 0.75rem;
+  }
+
+  .compare th,
+  .compare td {
+    padding: 0.5rem 0.35rem;
+    font-size: 0.88rem;
+  }
+}
