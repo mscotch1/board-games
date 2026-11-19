@@ -113,6 +113,8 @@
           </form>
         </section>
 
+        <p id="connecting" class="connecting muted" role="status" hidden>Setting up the game&hellip;</p>
+
         <section id="waiting" class="stack" hidden>
           <p>Send this link to your opponent:</p>
           <div class="row">
@@ -159,7 +161,7 @@
           <section class="panel controls">
             <p id="hint" class="hint"></p>
             <p id="notice" class="notice" role="alert"></p>
-            <div class="row">
+            <div id="turn-actions" class="row turn-actions">
               <button id="undo" class="btn" type="button">Undo</button>
               <button id="end-turn" class="btn primary" type="button">End turn</button>
             </div>
@@ -195,7 +197,7 @@
             </p>
           </section>
 
-          <section class="panel chat">
+          <section id="chat-panel" class="panel chat">
             <h2>Chat</h2>
             <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
             <form id="chat-form" class="row">

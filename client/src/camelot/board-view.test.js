@@ -99,6 +99,13 @@ describe('board markup', () => {
     expect(count(markup, 'ghost-mark')).toBe(2);
   });
 
+  it('marks where pieces were taken with a small cross and no piece', () => {
+    const markup = boardMarkup(view({ marks: [100, 101] }));
+    expect(count(markup, 'live-mark')).toBe(2);
+    expect(count(markup, 'ghost')).toBe(0);
+    expect(count(markup, '<use class="piece')).toBe(0);
+  });
+
   it('only marks clickable squares as clickable', () => {
     const markup = boardMarkup(view({ clickable: new Set([100]) }));
     expect(count(markup, 'clickable')).toBe(1);

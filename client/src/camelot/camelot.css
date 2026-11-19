@@ -808,9 +808,9 @@ a.ext::after {
 
 .route.last {
   stroke: var(--accent-2);
-  stroke-width: 12;
-  stroke-dasharray: 24 12;
-  opacity: 0.9;
+  stroke-width: 9;
+  stroke-dasharray: 22 12;
+  opacity: 0.75;
 }
 
 .trail-start {
@@ -844,7 +844,13 @@ a.ext::after {
 }
 
 .piece.ghost {
-  opacity: 0.38;
+  opacity: 0.3;
+}
+
+/* the live board: just a small cross where a piece was taken */
+.capture-mark.live-mark {
+  stroke-width: 7;
+  opacity: 0.6;
 }
 
 .capture-mark.ghost-mark {
@@ -975,4 +981,84 @@ a.ext::after {
   color: var(--muted);
   font-size: 0.8rem;
   cursor: pointer;
+}
+
+/* the buttons for the turn are easy to hit: tall, with End turn the bigger target of the two */
+
+.turn-actions .btn {
+  min-height: 2.9rem;
+}
+
+.turn-actions #end-turn {
+  flex: 2;
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  /* on a phone they stay at the bottom of the screen while it's your turn, so there is no scrolling for them */
+  .turn-actions {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 0.3);
+  }
+
+  .turn-actions.idle {
+    display: none;
+  }
+
+  .controls .turn-actions .btn {
+    min-height: 3.25rem;
+    font-size: 1.05rem;
+  }
+
+  /* room under the page's last line for the bar, and the board small enough to sit above it */
+  .game {
+    padding-bottom: 5.5rem;
+  }
+
+  .board-wrap {
+    width: min(100%, calc((100dvh - 12.5rem) * var(--board-ratio, 0.77)));
+  }
+}
+
+@media (pointer: coarse) {
+  .controls .btn,
+  .history-nav .btn {
+    min-height: 2.75rem;
+  }
+}
+
+/* the message shown for the moment between choosing a game and hearing back from the server */
+.connecting {
+  margin: 0;
+  padding: 1.5rem 0;
+  text-align: center;
+}
+
+/* games against the computer have no chat: the move list takes the room */
+.chat[hidden] {
+  display: none;
+}
+
+.side.no-chat .history {
+  flex: 1;
+  min-height: 0;
+}
+
+.side.no-chat .history-list {
+  flex: 1;
+  max-height: none;
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .side.no-chat .history-list {
+    max-height: 14rem;
+  }
 }

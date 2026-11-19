@@ -281,7 +281,7 @@ def handle_message(message):
         send_to_player(record, opponent, {"topic": "opponent-preview", "message": {"moves": body["moves"]}})
     elif topic == "hover" and (body.get("index") is None or valid_square(body.get("index"), size)):
         send_to_player(record, opponent, {"topic": "opponent-hover", "message": {"index": body.get("index")}})
-    elif topic == "chat" and isinstance(body.get("text"), str):
+    elif topic == "chat" and isinstance(body.get("text"), str) and record.bot is None:
         text = body["text"].strip()[:MAX_CHAT_LENGTH]
         if text:
             record.add_chat(seat, text)

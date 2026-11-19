@@ -75,8 +75,12 @@ function start(code, side, variant, computer) {
   }
   const { token } = getGame(code);
 
+  // The invite card is only for a game that is waiting for a friend, and the server says when that is. Until it
+  // answers (which is at once, for a computer game or one being resumed) there is just a quiet message, so the
+  // card with the link doesn't flash up and vanish.
   $('menu').hidden = true;
-  $('waiting').hidden = false;
+  $('waiting').hidden = true;
+  $('connecting').hidden = false;
   $('invite-link').textContent = inviteLink(code);
   $('game-code').textContent = code;
 
@@ -97,6 +101,7 @@ function start(code, side, variant, computer) {
     if (reasonCode === 'not-found' || getGame(code)?.pending) {
       forgetGame(code); // nothing to come back to
     }
+    $('connecting').hidden = true;
     showProblem(reasonCode === 'not-found' ? reason : `Could not join the game: ${reason}.`);
   });
   connection.onStatus((connected) => {
@@ -105,6 +110,8 @@ function start(code, side, variant, computer) {
 
   connection.on('waiting', () => {
     saveGame(code, { token, variant, pending: false });
+    $('connecting').hidden = true;
+    $('waiting').hidden = false;
   });
   connection.on('game-ready', ({ side: yourSide, state, chat, opponentConnected, computer: level, history }) => {
     saveGame(code, {
@@ -222,6 +229,9 @@ function begin(code, side, state, chat = [], opponentConnected = true, computer 
   $('notice').textContent = '';
   $('chat-log').replaceChildren();
   chat.forEach((message) => addChat(message.text, message.side === side));
+  // the computer doesn't chat, so there is no chat box; the move list gets the room instead
+  $('chat-panel').hidden = Boolean(computer);
+  document.querySelector('.side').classList.toggle('no-chat', Boolean(computer));
   // the game on the other end decides which game this is, whatever the lobby said
   $('brand-name').textContent = state.variantName;
   $('rules-link').href = `rules/#${state.variant}`;
@@ -361,7 +371,10 @@ function render() {
     lastTurn: entry ? { moves: entry.moves } : null,
     // while a move is being built the marks of the last one would only be in the way
     trail: path.length === 0 && entry ? entry.moves : [],
-    ghosts: path.length === 0 && entry ? ghostsOf(entry) : [],
+    // the live board only marks where pieces were taken, to keep the pieces still in play easy to see;
+    // looking at a past move shows the taken pieces themselves
+    ghosts: path.length === 0 && entry && session.review !== null ? ghostsOf(entry) : [],
+    marks: path.length === 0 && entry && session.review === null ? entry.captured.map(([square]) => square) : [],
     path,
     captured: live ? capturedSoFar(state.legal, path) : [],
   };
@@ -606,6 +619,7 @@ function renderPlayers() {
 
 function renderControls(myTurn) {
   const { state, path } = session;
+  $('turn-actions').classList.toggle('idle', !myTurn);
   const complete = myTurn && exactTurn(state.legal, path) !== null;
 
   $('undo').disabled = !myTurn || path.length === 0;

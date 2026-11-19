@@ -128,3 +128,12 @@ def test_the_computer_seat_is_saved_with_the_game():
     loaded = Record.from_dict(record.to_dict())
     assert loaded.bot == "easy" and loaded.bot_token == record.bot_token
     client.disconnect()
+
+
+def test_chat_is_ignored_in_a_game_against_the_computer():
+    client = play_against_computer()
+    wait_for(client, "game-ready")
+    client.emit("message", {"topic": "chat", "message": {"text": "anyone there?"}})
+    time.sleep(0.2)
+    assert app_module.registry._get("bot1").chat == []
+    client.disconnect()

@@ -39,7 +39,8 @@ const kind = (piece) => (piece % 2 === 0 ? 'knight' : 'man');
  * `view` has: rows, cols, mask, board, side, castles, lastTurn, clickable (Set),
  * movable (Set), candidates (Map of square -> { capture }), path, captured,
  * opponentPath, opponentHover, and optionally `trail` (the squares of a turn to show as
- * a numbered route) and `ghosts` ([{ index, piece }]: taken pieces to draw faded where they stood).
+ * a numbered route), `ghosts` ([{ index, piece }]: taken pieces to draw faded where they stood) and
+ * `marks` (squares to mark with a small cross: where pieces were taken, without drawing them).
  */
 export function boardMarkup(view) {
   const { rows, cols, mask, board, side, path, captured, opponentPath } = view;
@@ -138,6 +139,13 @@ export function boardMarkup(view) {
     pieces.push(drawPiece(index, piece, 'ghost'));
     pieces.push(
       `<path class="capture-mark ghost-mark" d="M${x + 24} ${y + 24} L${x + 76} ${y + 76} M${x + 76} ${y + 24} L${x + 24} ${y + 76}" />`,
+    );
+  }
+
+  for (const index of view.marks ?? []) {
+    const { cx, cy } = at(index);
+    pieces.push(
+      `<path class="capture-mark live-mark" d="M${cx - 16} ${cy - 16} L${cx + 16} ${cy + 16} M${cx + 16} ${cy - 16} L${cx - 16} ${cy + 16}" />`,
     );
   }
 
