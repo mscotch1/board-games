@@ -1,0 +1,264 @@
+@import '../shared/theme.css';
+/* the board and piece styles are shared with the game, so the diagrams match it */
+@import '../camelot/camelot.css';
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+.rules-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.rules-nav {
+  display: flex;
+  flex: 1;
+  gap: 0.25rem;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.rules-nav a {
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+
+.rules-nav a:hover {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: min(46rem, 100%);
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+}
+
+.rules-hero {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1rem 0;
+}
+
+.rules-hero .crest {
+  width: 5rem;
+  height: 6rem;
+}
+
+.rules-hero h1 {
+  font-size: clamp(2.4rem, 7vw, 3.4rem);
+  line-height: 1.05;
+}
+
+.hero-actions {
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.rules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.5rem;
+}
+
+.rules-section h2 {
+  font-size: 2rem;
+  line-height: 1.1;
+  color: var(--accent);
+}
+
+/* a small flourish under each section heading */
+.rules-section h2::after {
+  content: '';
+  display: block;
+  width: 4rem;
+  height: 3px;
+  margin-top: 0.5rem;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--crimson), var(--accent));
+}
+
+.rules-section h3 {
+  margin-top: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 400;
+}
+
+.rules-section p,
+.rules-section li {
+  line-height: 1.65;
+}
+
+.rules-section ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.rules-section li::marker {
+  color: var(--accent);
+}
+
+.diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.diagram [data-diagram] {
+  width: min(20rem, 100%);
+  overflow: hidden;
+  border: 3px solid var(--frame-outer);
+  border-radius: 0.5rem;
+  box-shadow: 0 0 0 3px var(--frame-inner), var(--shadow);
+}
+
+.diagram svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.diagram figcaption {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.route-head {
+  fill: var(--good);
+}
+
+.route-stop {
+  fill: var(--good);
+  stroke: rgb(0 0 0 / 0.35);
+  stroke-width: 3;
+}
+
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.compare th,
+.compare td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.compare thead th {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 400;
+}
+
+.compare tbody th {
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.rules a:not(.btn) {
+  color: var(--accent);
+  text-underline-offset: 0.2em;
+}
+
+.further-reading {
+  list-style: none;
+  padding-left: 0 !important;
+}
+
+.further-reading li {
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.further-reading li:hover {
+  border-color: var(--accent);
+}
+
+/* links that leave the site carry a small arrow */
+a.ext::after {
+  content: '\2197';
+  margin-left: 0.25em;
+  font-size: 0.85em;
+  text-decoration: none;
+}
+
+.rules-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  padding-top: 0.5rem;
+}
+
+@media (max-width: 700px) {
+  .rules-bar .home-link span {
+    display: none;
+  }
+
+  .rules-bar .home-link {
+    padding: 0.35rem 0.5rem;
+  }
+
+  .rules-nav {
+    justify-content: flex-start;
+  }
+
+  .rules-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rules-section {
+    padding: 1.1rem;
+  }
+
+  .compare tbody th {
+    white-space: normal;
+  }
+}

@@ -8,6 +8,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         camelot: resolve(import.meta.dirname, 'games/camelot/index.html'),
+        rules: resolve(import.meta.dirname, 'games/camelot/rules/index.html'),
       },
     },
   },

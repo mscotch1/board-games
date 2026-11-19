@@ -336,10 +336,11 @@ def test_a_waiting_creator_who_leaves_keeps_their_game_open():
 
 @pytest.fixture
 def static_dir(tmp_path, monkeypatch):
-    (tmp_path / "games" / "camelot").mkdir(parents=True)
+    (tmp_path / "games" / "camelot" / "rules").mkdir(parents=True)
     (tmp_path / "assets").mkdir()
     (tmp_path / "index.html").write_text("landing")
     (tmp_path / "games" / "camelot" / "index.html").write_text("camelot")
+    (tmp_path / "games" / "camelot" / "rules" / "index.html").write_text("the rules")
     (tmp_path / "assets" / "app-abc123.js").write_text("console.log(1)")
     (tmp_path.parent / "secret.txt").write_text("secret")
     monkeypatch.setitem(app_module.app.config, "STATIC_DIR", str(tmp_path))
@@ -352,6 +353,14 @@ def test_serves_the_landing_page_and_game_pages(static_dir):
     assert client.get("/index.html").data == b"landing"
     assert client.get("/games/camelot/").data == b"camelot"
     assert client.get("/games/camelot/index.html").data == b"camelot"
+
+
+def test_serves_the_rules_page(static_dir):
+    client = app_module.app.test_client()
+    assert client.get("/games/camelot/rules/").data == b"the rules"
+    response = client.get("/games/camelot/rules")
+    assert response.status_code in (301, 302, 307, 308)
+    assert response.headers["Location"].endswith("/games/camelot/rules/")
 
 
 def test_directory_without_a_trailing_slash_redirects(static_dir):

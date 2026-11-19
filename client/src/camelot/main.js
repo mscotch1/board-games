@@ -189,6 +189,7 @@ function begin(code, side, state, chat = [], opponentConnected = true) {
   chat.forEach((message) => addChat(message.text, message.side === side));
   // the game on the other end decides which game this is, whatever the lobby said
   $('brand-name').textContent = state.variantName;
+  $('rules-link').href = `rules/#${state.variant}`;
   $('lobby').hidden = true;
   $('game').hidden = false;
   render();

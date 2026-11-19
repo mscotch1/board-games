@@ -43,6 +43,32 @@
   right: 1rem;
 }
 
+/* quiet links to the rules and further reading, under the lobby card */
+.card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.1rem;
+  justify-content: center;
+  padding-top: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.card-links a {
+  color: var(--muted);
+  text-underline-offset: 0.2em;
+}
+
+.card-links a:hover {
+  color: var(--accent);
+}
+
+a.ext::after {
+  content: '\2197';
+  margin-left: 0.25em;
+  font-size: 0.85em;
+  text-decoration: none;
+}
+
 .tight {
   gap: 0.25rem;
 }
@@ -222,7 +248,7 @@
   color: var(--on-good);
 }
 
-.topbar .home-link {
+.topbar #rules-link {
   margin-left: auto;
 }
 

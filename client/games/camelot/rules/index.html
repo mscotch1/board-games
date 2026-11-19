@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>How to play | Camelot &amp; Cam | Monka Games</title>
+    <meta name="description" content="The rules of Camelot and Cam: how the pieces move, how captures work, how castles work and how to win." />
+    <link rel="icon" href="/favicon.ico" />
+    <script>
+      // set the theme before the first paint (theme.js keeps it up to date)
+      try {
+        var root = document.documentElement;
+        var saved = localStorage.getItem('theme');
+        if (saved !== 'light' && saved !== 'dark') {
+          saved = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        } else {
+          root.dataset.theme = saved;
+        }
+        root.dataset.effective = saved;
+      } catch (e) {}
+    </script>
+    <script type="module" src="/src/rules/rules.js"></script>
+  </head>
+  <body class="rules-page">
+    <div class="rules-bar">
+      <a class="home-link" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg><span>All games</span></a>
+      <nav class="rules-nav" aria-label="On this page">
+        <a href="#moves">Moves</a>
+        <a href="#camelot">Camelot</a>
+        <a href="#cam">Cam</a>
+        <a href="#site">Playing here</a>
+        <a href="#more">Learn more</a>
+      </nav>
+      <div class="theme-picker" data-theme-picker></div>
+    </div>
+
+    <main class="rules">
+      <header class="rules-hero">
+        <svg class="crest" viewBox="0 0 100 120" aria-hidden="true"><use href="#crest" /></svg>
+        <div class="stack tight">
+          <h1 class="display">How to play</h1>
+          <p class="muted">
+            Camelot and Cam are two-player games of knights and men. They share their moves and differ in the board, the number of pieces
+            and how you win.
+          </p>
+          <div class="row hero-actions">
+            <a class="btn primary" href="/games/camelot/">Play Camelot</a>
+            <a class="btn" href="/games/camelot/?variant=cam">Play Cam</a>
+          </div>
+        </div>
+      </header>
+
+      <section id="moves" class="panel rules-section">
+        <h2 class="display">The moves</h2>
+        <p>
+          Players take turns, White first, and each turn moves one piece. Men and knights move in the same way, except that only
+          knights can <strong>charge</strong>. Every move goes in a straight line in any of the eight directions: sideways, up and
+          down, or diagonally.
+        </p>
+
+        <h3>The plain move</h3>
+        <figure class="diagram">
+          <div data-diagram='{"cols":5,"rows":3,"label":"A man in the middle can step to any of the eight squares around it","pieces":[{"col":2,"row":1,"piece":1}],"dots":[[1,0],[2,0],[3,0],[1,1],[3,1],[1,2],[2,2],[3,2]]}'></div>
+          <figcaption>One step onto an empty square next to you.</figcaption>
+        </figure>
+
+        <h3>The canter</h3>
+        <figure class="diagram">
+          <div data-diagram='{"cols":5,"rows":3,"label":"A man cantering over two friendly men in a row","pieces":[{"col":0,"row":2,"piece":1},{"col":1,"row":1,"piece":1},{"col":3,"row":0,"piece":1}],"route":[[0,2],[2,0],[4,0]]}'></div>
+          <figcaption>Leap over a friend, which stays where it is.</figcaption>
+        </figure>
+        <p>
+          Leap over a friendly piece next to you onto the empty square just beyond it. You can chain several canters, turning
+          between them, and stop whenever you like. A canter can't begin and end on the same square. (On this site a piece also
+          can't canter over the same friend twice in one turn.)
+        </p>
+
+        <h3>The jump</h3>
+        <figure class="diagram">
+          <div data-diagram='{"cols":5,"rows":3,"label":"A man jumping and capturing two enemy men in a row","pieces":[{"col":0,"row":2,"piece":1},{"col":1,"row":1,"piece":3},{"col":3,"row":0,"piece":3}],"captured":[[1,1],[3,0]],"route":[[0,2],[2,0],[4,0]]}'></div>
+          <figcaption>Leap over an enemy and take it.</figcaption>
+        </figure>
+        <p>
+          Leap over an enemy piece next to you onto the empty square beyond, and capture it. <strong>Jumping is compulsory.</strong>
+          If any of your pieces can jump, you must, though you choose which piece and which route. Once a piece starts jumping it
+          must keep going for as long as it can jump again, and it may change direction at each jump.
+        </p>
+
+        <h3>The knight's charge</h3>
+        <figure class="diagram">
+          <div data-diagram='{"cols":5,"rows":3,"label":"A knight cantering over a friend and then jumping an enemy","pieces":[{"col":0,"row":2,"piece":2},{"col":1,"row":1,"piece":1},{"col":3,"row":1,"piece":3}],"captured":[[3,1]],"route":[[0,2],[2,0],[4,2]]}'></div>
+          <figcaption>A knight may canter, then jump, in one turn.</figcaption>
+        </figure>
+        <p>
+          A knight (and only a knight) can canter one or more times and then jump one or more times, all in a single turn. A
+          knight is never forced to charge, but a charge counts as a capture, so it can be how you meet the duty to jump. Men can
+          chain canters or chain jumps, never a mixture.
+        </p>
+      </section>
+
+      <section id="camelot" class="panel rules-section">
+        <h2 class="display">Camelot</h2>
+        <p>
+          The classic game, on a board of 160 squares. Each side has <strong>ten men and four knights</strong>, with White at the
+          bottom of the board.
+        </p>
+
+        <h3>Winning</h3>
+        <ul>
+          <li>Get <strong>two of your pieces into the enemy castle</strong>, the two squares at the far end of the board.</li>
+          <li>Or capture every enemy piece, as long as you have at least two pieces left.</li>
+          <li>Or leave your opponent with no legal move while you have at least two pieces.</li>
+        </ul>
+
+        <h3>The castles</h3>
+        <ul>
+          <li>
+            <strong>Your own castle</strong> (the two squares behind your starting position): you can't step or canter into it, but
+            you may <em>jump</em> into it. A piece that jumps in and can't keep jumping must leave on your next turn, ahead of any
+            other move, and must jump out if it can.
+          </li>
+          <li>
+            <strong>The enemy castle:</strong> a piece that gets in ends its turn there and can never come out again. Each player
+            may move a piece from one castle square to the other twice in the whole game.
+          </li>
+        </ul>
+
+        <h3>Draws</h3>
+        <ul>
+          <li>You can agree a draw: offer one, and your opponent can accept or decline.</li>
+          <li>It is drawn at once when each side is down to a single piece or fewer.</li>
+          <li>Either player can claim a draw when the same position has come up three times with the same player to move.</li>
+          <li>Or when fifty moves each have passed with no capture and no piece reaching a castle.</li>
+        </ul>
+      </section>
+
+      <section id="cam" class="panel rules-section">
+        <h2 class="display">Cam</h2>
+        <p>
+          A pocket version of Camelot, published by Parker Brothers in 1949. The moves, jumping and charging are the same. It is
+          played on a much smaller board, and it is a race: one piece in the castle wins.
+        </p>
+
+        <table class="compare">
+          <caption class="visually-hidden">Camelot and Cam side by side</caption>
+          <thead>
+            <tr><th scope="col"></th><th scope="col">Camelot</th><th scope="col">Cam</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Board</th><td>160 squares (12 files, 16 ranks)</td><td>67 squares (7 files, 13 ranks)</td></tr>
+            <tr><th scope="row">Pieces</th><td>10 men and 4 knights each</td><td>5 men and 2 knights each</td></tr>
+            <tr><th scope="row">Castle</th><td>Two squares at each end</td><td>One square at each end</td></tr>
+            <tr><th scope="row">To win</th><td>Two pieces in the enemy castle</td><td>Any one piece in the enemy castle</td></tr>
+            <tr><th scope="row">Entering the enemy castle</th><td>Ends your turn; the piece is stuck there</td><td>Wins the game at once</td></tr>
+            <tr><th scope="row">Your own castle</th><td>Jump in only; must leave next turn</td><td>The same</td></tr>
+            <tr><th scope="row">Draws</th><td>Yes, as above</td><td>None</td></tr>
+          </tbody>
+        </table>
+        <p>
+          You also win by capturing every enemy piece, with no minimum number of your own left. A player who has no legal move
+          simply loses.
+        </p>
+      </section>
+
+      <section id="site" class="panel rules-section">
+        <h2 class="display">Playing here</h2>
+        <ul>
+          <li>
+            On your turn, the pieces that can move are ringed. If you have to capture, only the pieces that can are ringed, and the
+            hint above the buttons says so.
+          </li>
+          <li>
+            Click a piece, then click where it goes next: a gold dot is a plain move or a canter, and a red ring is a jump. Your
+            route is drawn as a green line, with any captured pieces crossed out. Keep clicking for chains.
+          </li>
+          <li>When the move is complete, press <strong>End turn</strong>. <strong>Undo</strong> takes back a click. The server only accepts legal moves.</li>
+          <li>Your opponent's last move is highlighted, and you can watch the route they are lining up before they confirm it.</li>
+          <li>The letters and numbers around the board name the squares, so you can talk about a move in the chat.</li>
+          <li>
+            Games are saved. Close the page, lose your connection or restart your computer and you can come back from the menu.
+            Your opponent shows as <em>away</em> meanwhile, and the game waits. There are no clocks.
+          </li>
+          <li>
+            <strong>Resign</strong> if you want to give up. By default a game nobody has touched for a week is cleared away, and a
+            finished game is kept for a day.
+          </li>
+          <li><strong>Play again</strong> starts a new game against the same opponent with the colours swapped.</li>
+        </ul>
+      </section>
+
+      <section id="more" class="panel rules-section">
+        <h2 class="display">Learn more</h2>
+        <p>
+          The rules here are summarised from the World Camelot Federation's official rules, and the game's history is much older than
+          you might think.
+        </p>
+        <ul class="further-reading">
+          <li>
+            <a class="ext" href="https://en.wikipedia.org/wiki/Camelot_(board_game)" target="_blank" rel="noopener noreferrer">Camelot on Wikipedia</a>
+            <span class="muted">A short history of the game, from its Victorian origins as <em>Chivalry</em> to the Parker Brothers editions, and its variants.</span>
+          </li>
+          <li>
+            <a class="ext" href="http://www.worldcamelotfederation.com/Camelot_Rules.htm" target="_blank" rel="noopener noreferrer">Official rules of Camelot</a>
+            <span class="muted">The World Camelot Federation's full rules, with notation and diagrams.</span>
+          </li>
+          <li>
+            <a class="ext" href="http://www.worldcamelotfederation.com/Cam_Rules.htm" target="_blank" rel="noopener noreferrer">Official rules of Cam</a>
+            <span class="muted">The same, for the pocket version.</span>
+          </li>
+          <li>
+            <a class="ext" href="http://www.worldcamelotfederation.com/" target="_blank" rel="noopener noreferrer">The World Camelot Federation</a>
+            <span class="muted">Rules, history, variants and equipment.</span>
+          </li>
+        </ul>
+
+        <h3>Where this site makes a call</h3>
+        <p class="muted">
+          The official text leaves a few things open. Here, a piece can't canter over the same friend twice in a turn (it stops
+          endless loops), the two castle moves are counted per player, and if a player has no legal move while the other has fewer
+          than two pieces, the game is drawn.
+        </p>
+      </section>
+
+      <footer class="rules-foot">
+        <a class="btn primary" href="/games/camelot/">Play Camelot</a>
+        <a class="btn" href="/games/camelot/?variant=cam">Play Cam</a>
+      </footer>
+    </main>
+  </body>
+</html>

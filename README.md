@@ -5,6 +5,9 @@ Two-player board games played in the browser: Camelot, and its pocket cousin Cam
 A Flask + Socket.IO server owns each game (it knows the rules, validates every
 move and saves the game); the client is a small Vite-built page that draws the board and sends moves.
 
+The rules are also on the site, with diagrams and links to further reading, at `/games/camelot/rules/`
+(linked from the front page, the lobby and the game header).
+
 ## Camelot rules
 
 Camelot follows the [World Camelot Federation's official rules](http://www.worldcamelotfederation.com/Camelot_Rules.htm).
