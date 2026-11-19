@@ -105,6 +105,8 @@ $(document).ready(async () => {
 
         stateManager.registerReducer('game/turn', (state, action) => {
             switch (action?.type) {
+                case 'SET':
+                    return action.payload;
                 case 'SWITCH':
                 default:
                     return state === '1' ? '2' : '1';
@@ -118,6 +120,12 @@ $(document).ready(async () => {
                     return action?.payload ?? null;
             }
         }, { winner: null });
+
+        // the server refused our move (e.g. it was illegal); drop the path being built
+        socket.subscribe('move-rejected', ({ error }) => {
+            stateManager.dispatch({ channel: 'board/turn/move', type: 'RESET' });
+            alert(`Move rejected: ${error}`);
+        });
 
         // turn indicator
         stateManager.subscribe('game/turn', (state) => {

@@ -55,9 +55,9 @@ export default class Board {
     registerReducers() {
         stateManager.registerReducer('board/pieces', (state, action) => {
             switch (action?.type) {
-                case 'MOVE': {
-                    return this.makeMoves(state, action.payload);
-                }
+                case 'SET':
+                    // the server owns the board and sends the full state after every turn
+                    return new Uint8Array(action.payload);
                 default:
                     return state;
             }
@@ -123,17 +123,6 @@ export default class Board {
     subscribe() {
         stateManager.subscribe('board/pieces', (state) => {
             this.state = state;
-
-            const winner = this.checkWinner();
-            if (winner !== null) {
-                stateManager.dispatch({
-                    channel: 'game/winner',
-                    type: 'FINISH',
-                    payload: {
-                        winner,
-                    },
-                }, false);
-            }
         });
         stateManager.subscribe('board/turn/move', (state) => {
             const isCurrentTurn = stateManager.getState('game/turn') === this.assignment;
@@ -169,37 +158,13 @@ export default class Board {
         };
     }
 
-    checkWinner() {
-        const backRow = this.state.filter((_v, i) => this.rowFromIndex(i) === 0 && this.BOARD_MASK[i]);
-        const frontRow = this.state.filter((_v, i) => this.rowFromIndex(i) === this.ROWS - 1 && this.BOARD_MASK[i]);
-
-        if (backRow.every((v) => v > 0 && v < 3)) {
-            return '1';
-        }
-
-        if (frontRow.every((v) => v >= 3)) {
-            return '2';
-        }
-
-        if (this.state.filter((_v, i) => this.isOpponentPiece(i)).length === 0) {
-            return this.assignment;
-        }
-
-        if (this.state.filter((_v, i) => this.isOwnPiece(i)).length === 0) {
-            return this.assignment === '1' ? '2' : '1';
-        }
-
-        return null;
-    }
-
+    // The server validates the move, then sends the new board, turn and any
+    // winner to both players, so nothing is applied locally here.
     endTurn() {
-        stateManager.dispatch({
-            channel: 'board/pieces',
-            type: 'MOVE',
-            payload: stateManager.getState('board/turn/move'),
+        stateManager.dispatch({ channel: 'menu/endturn', type: 'DISABLE' }, false);
+        stateManager.socket.publish('end-turn', {
+            moves: Array.from(stateManager.getState('board/turn/move')),
         });
-        stateManager.dispatch({ channel: 'game/turn', type: 'SWITCH' });
-        stateManager.dispatch({ channel: 'board/turn/move', type: 'RESET' });
     }
 
     isValidMove(moves) {
