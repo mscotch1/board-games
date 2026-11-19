@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120">
+  <!-- the site's crest: a gold-edged blue shield with a red chief and a white horse -->
+  <path d="M10 8 H90 V60 C90 92 66 108 50 114 C34 108 10 92 10 60 Z" fill="#2f55b4" />
+  <path d="M10 8 H90 V24 H10 Z" fill="#b3303f" />
+  <g transform="translate(12 14) scale(0.76)" stroke-linejoin="round">
+    <path d="M31 79 C28 68 30 58 37 50 C31 44 29 36 33 27 C34 22 36 18 37 13 L38 5 L44 16 L50 6 L53 18 C62 17 72 23 79 33 C84 39 88 47 88 53 C88 58 84 61 79 60 C75 59 72 57 68 57 C64 56 60 54 58 56 C57 63 64 70 74 79 Z" fill="#f8f2df" stroke="#3b3322" stroke-width="4" />
+    <path d="M37 13 C29 16 25 24 27 30 C21 32 21 40 27 43 C21 47 22 55 28 57 C24 62 25 70 30 74 L36 70 C34 62 35 52 41 46 C36 40 36 28 37 13 Z" fill="#d8aa45" stroke="#3b3322" stroke-width="3" />
+    <circle cx="65" cy="31" r="3.6" fill="#3b3322" />
+    <path d="M23 87 C23 81 29 79 35 79 H65 C71 79 77 81 77 87 Z" fill="#f8f2df" stroke="#3b3322" stroke-width="4" />
+  </g>
+  <path d="M10 8 H90 V60 C90 92 66 108 50 114 C34 108 10 92 10 60 Z" fill="none" stroke="#e8b94d" stroke-width="7" stroke-linejoin="round" />
+</svg>

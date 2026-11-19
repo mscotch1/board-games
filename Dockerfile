@@ -10,6 +10,8 @@ COPY client/ ./
 ARG APP_VERSION=dev
 ARG APP_COMMIT=
 ARG APP_BUILT=
+# The public address (e.g. https://games.example.com), for link previews and canonical links
+ARG SITE_URL=
 RUN npm run build
 
 # The server, with the built client

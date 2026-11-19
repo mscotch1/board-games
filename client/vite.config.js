@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
+import { siteMetaPlugin } from './src/build/site-meta.js';
 
 /** The output of a git command, or '' when git (or a repository) isn't there, as in the Docker build. */
 function git(args) {
@@ -21,6 +22,8 @@ const build = {
 };
 
 export default defineConfig({
+  // SITE_URL (e.g. https://games.example.com) is the public address, for link previews and canonical links
+  plugins: [siteMetaPlugin(process.env.SITE_URL)],
   define: {
     __BUILD__: JSON.stringify(build),
   },
@@ -31,6 +34,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         camelot: resolve(import.meta.dirname, 'games/camelot/index.html'),
         rules: resolve(import.meta.dirname, 'games/camelot/rules/index.html'),
+        notFound: resolve(import.meta.dirname, '404.html'),
       },
     },
   },

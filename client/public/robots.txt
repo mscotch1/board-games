@@ -1,0 +1,7 @@
+# Individual games are private invitations, not content, and the rest are not pages.
+User-agent: *
+Allow: /
+Disallow: /*gamecode=
+Disallow: /socket.io/
+Disallow: /healthz
+Disallow: /version

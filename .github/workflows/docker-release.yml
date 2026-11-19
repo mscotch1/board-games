@@ -49,6 +49,7 @@ jobs:
             APP_VERSION=${{ github.ref_name }}
             APP_COMMIT=${{ github.sha }}
             APP_BUILT=${{ env.APP_BUILT }}
+            SITE_URL=${{ vars.SITE_URL }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

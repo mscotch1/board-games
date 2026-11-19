@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from os import getenv, path
 
 from dotenv import load_dotenv
-from flask import Flask, abort, jsonify, redirect, request, send_from_directory
+from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory
 
 # python-socketio only passes a refusal reason on to the client for its own exception
 from flask_socketio import ConnectionRefusedError, SocketIO, emit
@@ -413,6 +413,20 @@ def serve_file(filename):
         return send_from_directory(static_dir, filename, max_age=max_age)
     except FileNotFoundError:
         abort(404)
+
+
+@app.errorhandler(404)
+def not_found(error):
+    """Browsers asking for a page get the site's own 404 page; scripts, assets and API clients
+    get the plain default."""
+    page = path.join(app.config["STATIC_DIR"], "404.html")
+    # browsers list text/html first and */* last, so ask which the client prefers
+    prefers_html = request.accept_mimetypes.best_match(["text/html", "application/json"]) == "text/html"
+    wants_page = prefers_html and not request.path.startswith(("/assets/", "/socket.io/"))
+    if wants_page and path.isfile(page):
+        with open(page, "rb") as file:
+            return Response(file.read(), status=404, mimetype="text/html")
+    return error
 
 
 if __name__ == "__main__":

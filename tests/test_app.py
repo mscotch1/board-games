@@ -381,6 +381,39 @@ def test_missing_files_and_traversal_are_404(static_dir, url):
     assert app_module.app.test_client().get(url).status_code == 404
 
 
+def test_unknown_pages_get_the_sites_own_404_page(static_dir):
+    (static_dir / "404.html").write_text("<h1>Lost in the castle</h1>")
+    client = app_module.app.test_client()
+
+    response = client.get("/no-such-page/", headers={"Accept": "text/html,application/xhtml+xml"})
+    assert response.status_code == 404
+    assert response.mimetype == "text/html"
+    assert b"Lost in the castle" in response.data
+    assert "Content-Security-Policy" in response.headers  # it is still a normal, protected response
+
+
+def test_a_real_browsers_accept_header_gets_the_404_page(static_dir):
+    (static_dir / "404.html").write_text("<h1>Lost in the castle</h1>")
+    chrome = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+    response = app_module.app.test_client().get("/no-such-page/", headers={"Accept": chrome})
+    assert response.status_code == 404 and b"Lost in the castle" in response.data
+
+
+def test_scripts_assets_and_api_clients_get_the_plain_404(static_dir):
+    (static_dir / "404.html").write_text("<h1>Lost in the castle</h1>")
+    client = app_module.app.test_client()
+
+    assert b"Lost in the castle" not in client.get("/assets/missing.js", headers={"Accept": "text/html"}).data
+    assert b"Lost in the castle" not in client.get("/nothing", headers={"Accept": "application/json"}).data
+    assert client.get("/assets/missing.js").status_code == 404
+
+
+def test_a_missing_404_page_falls_back_to_the_default(static_dir):
+    response = app_module.app.test_client().get("/no-such-page", headers={"Accept": "text/html"})
+    assert response.status_code == 404
+    assert b"Not Found" in response.data
+
+
 def test_healthz_reports_ok_with_the_build_and_game_counts(monkeypatch):
     monkeypatch.setattr(app_module, "BUILD", {"version": "v1.2.0", "commit": "abc1234", "built": "2026-11-19T15:30:00Z"})
     connect("waiting-game")

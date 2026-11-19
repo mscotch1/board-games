@@ -163,6 +163,21 @@ docker compose start board-games
 
 Players' tokens are in the saved games, so everyone can come back to their games as they were at the time of the backup.
 
+## Sharing and discovery
+
+- **Link previews:** the pages have Open Graph and Twitter card tags and a share image (`client/public/og-image.png`,
+  made from `client/design/social-card.html`). Crawlers need absolute URLs, so set the build argument `SITE_URL`
+  to the public address (for the release workflow, add a repository *variable* named `SITE_URL`, such as
+  `https://games.example.com`); the build then adds `og:image`, `og:url` and canonical links. Without it the previews
+  still show a title and description.
+- **Icons:** an SVG favicon (the crest), an `.ico` fallback and a touch icon; the browser's address bar takes the site's
+  colours on phones (`theme-color`, light and dark).
+- **`robots.txt`** keeps search engines out of individual games (`?gamecode=`) and the service endpoints.
+- **404 page:** a page that isn't there gets the site's own "Lost in the castle" page, with links back; scripts, assets
+  and API clients get the plain 404.
+- **About & privacy:** a section of the rules page says what the browser and the server keep, and that the site is not
+  affiliated with Parker Brothers, Hasbro or the World Camelot Federation.
+
 ## Security
 
 - **Strict Content-Security-Policy** on every response: only this site's own scripts, styles, fonts and images,

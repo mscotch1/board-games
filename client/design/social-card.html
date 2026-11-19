@@ -1,0 +1,57 @@
+<!doctype html>
+<!--
+  The picture shown when a link to the site is shared (public/og-image.png, 1200 x 630), and
+  the touch icon (public/apple-touch-icon.png, 180 x 180, made from public/favicon.svg).
+  To remake it, open this file in a browser at 1200 x 630 and take a screenshot. It uses the
+  same colours, crest and font as the site, so keep them in step with src/shared/theme.css.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monka Games social card</title>
+    <style>
+      @font-face {
+        font-family: 'MedievalSharp';
+        src: url('../node_modules/@fontsource/medievalsharp/files/medievalsharp-latin-400-normal.woff2') format('woff2');
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+      body {
+        position: relative;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(ellipse 120% 80% at 50% 0%, #1d2656, #0e1230 70%);
+        color: #f4edd9;
+        font-family: 'MedievalSharp', Georgia, serif;
+      }
+      .lozenges {
+        position: absolute;
+        inset: 0;
+        opacity: 0.06;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M28 4 L52 28 L28 52 L4 28 Z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+      }
+      .bunting {
+        position: absolute;
+        top: 0; left: 0; right: 0; height: 92px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='46' viewBox='0 0 160 46'%3E%3Cpath d='M0 5 Q20 12 40 5 T80 5 T120 5 T160 5' fill='none' stroke='%23caa24a' stroke-width='2'/%3E%3Cpath d='M8 9 L34 9 L21 38 Z' fill='%23b3303f'/%3E%3Cpath d='M48 9 L74 9 L61 38 Z' fill='%23e9bb4f'/%3E%3Cpath d='M88 9 L114 9 L101 38 Z' fill='%232f55b4'/%3E%3Cpath d='M128 9 L154 9 L141 38 Z' fill='%233a9460'/%3E%3C/svg%3E") repeat-x top left / 320px 92px;
+      }
+      .card { position: relative; display: flex; align-items: center; gap: 64px; padding-top: 40px; }
+      .crest { width: 230px; height: 276px; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.5)); }
+      h1 { margin: 0; font-size: 128px; font-weight: 400; line-height: 1; letter-spacing: 0.02em; }
+      p { margin: 18px 0 0; font-family: system-ui, 'Segoe UI', sans-serif; font-size: 34px; color: #aeb4d6; }
+      .games { margin-top: 28px; color: #e8b94d; font-size: 52px; }
+    </style>
+  </head>
+  <body>
+    <div class="lozenges"></div>
+    <div class="bunting"></div>
+    <div class="card">
+      <img class="crest" src="../public/favicon.svg" alt="" />
+      <div>
+        <h1>Monka Games</h1>
+        <p>Board games to play with a friend, right in the browser.</p>
+        <div class="games">Camelot &nbsp;&middot;&nbsp; Cam</div>
+      </div>
+    </div>
+  </body>
+</html>
