@@ -88,6 +88,18 @@ class SqliteStore:
         with self._lock:
             return self._db.execute("SELECT code, status, updated_at FROM games").fetchall()
 
+    def backup(self, destination):
+        """Write a complete, consistent copy of every game to the file `destination`. This is safe
+        while the server is running, and `destination` only appears once it is complete."""
+        partial = destination + ".partial"
+        with self._lock:
+            target = sqlite3.connect(partial)
+            try:
+                self._db.backup(target)
+            finally:
+                target.close()
+        os.replace(partial, destination)
+
     def close(self):
         with self._lock:
             self._db.close()

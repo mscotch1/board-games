@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+from datetime import datetime, timezone
 from os import getenv, path
 
 from dotenv import load_dotenv
@@ -10,6 +11,7 @@ from flask import Flask, abort, jsonify, redirect, request, send_from_directory
 from flask_socketio import ConnectionRefusedError, SocketIO, emit
 
 from game import MAX_PATH_LENGTH, IllegalMove
+from backups import start_backups
 from ratelimit import RateLimiter
 from registry import Refused, Registry
 from store import open_store
@@ -79,10 +81,18 @@ new_game_limiter = (
 message_limiter = RateLimiter(MESSAGES_PER_SECOND, burst=2 * MESSAGES_PER_SECOND)
 
 # DATA_DIR is where games are saved so they survive a restart; set it empty to keep them in memory only
-registry = Registry(
-    open_store(getenv("DATA_DIR", path.join(BASE_DIR, "data"))),
-    ttl=ttl_from_environment(),
-    max_games=MAX_GAMES or None,
+DATA_DIR = getenv("DATA_DIR", path.join(BASE_DIR, "data"))
+store = open_store(DATA_DIR)
+registry = Registry(store, ttl=ttl_from_environment(), max_games=MAX_GAMES or None)
+
+# A copy of the saved games is taken every BACKUP_INTERVAL_HOURS (0 turns this off), keeping the
+# newest BACKUP_KEEP, in BACKUP_DIR (by default a folder inside DATA_DIR; point it at a different
+# disk or a synced folder to survive losing the data volume).
+backup_scheduler = start_backups(
+    store,
+    getenv("BACKUP_DIR") or path.join(DATA_DIR, "backups"),
+    interval_hours=float(getenv("BACKUP_INTERVAL_HOURS") or 24),
+    keep=int_from_environment("BACKUP_KEEP", 7),
 )
 
 
@@ -379,7 +389,11 @@ def healthz():
         log.exception("health check failed")
         return no_store(jsonify({"status": "error", **BUILD})), 503
 
-    return no_store(jsonify({"status": "ok", **BUILD, "uptimeSeconds": int(time.time() - STARTED_AT), **stats}))
+    body = {"status": "ok", **BUILD, "uptimeSeconds": int(time.time() - STARTED_AT), **stats}
+    if backup_scheduler is not None:
+        last = backup_scheduler.last_backup_at
+        body["lastBackup"] = datetime.fromtimestamp(last, timezone.utc).isoformat() if last else None
+    return no_store(jsonify(body))
 
 
 @app.get("/", defaults={"filename": ""})

@@ -136,10 +136,32 @@ Restarting or replacing the container keeps every game, as long as `/data` is a 
 | `WAITING_TTL_HOURS`    | Hours before a game nobody has joined is deleted. Default 24.            |
 | `GAME_TTL_DAYS`        | Days of inactivity before a game in progress is deleted. Default 7.      |
 | `FINISHED_TTL_HOURS`   | Hours a finished game is kept. Default 24.                               |
+| `BACKUP_INTERVAL_HOURS` | Hours between backups of the saved games. Default 24; 0 turns backups off. |
+| `BACKUP_KEEP`          | How many backups to keep (the newest). Default 7; 0 keeps them all.      |
+| `BACKUP_DIR`           | Where backups go. Defaults to `backups/` inside `DATA_DIR`.               |
 | `NEW_GAMES_PER_HOUR`   | How many new games one client address may start per hour (in bursts of up to 10). Default 30; 0 turns it off. |
 | `MAX_GAMES`            | The most games kept at once; beyond that new games are turned away. Default 5000; 0 turns it off. |
 | `CLIENT_IP_HEADER`     | The header holding the real client address when behind a proxy, e.g. `CF-Connecting-IP`. Only set it when the proxy is trusted to set it. |
 | `HSTS_MAX_AGE`         | Seconds for a `Strict-Transport-Security` header. Off by default; turn it on once the site is served over HTTPS. |
+
+## Backups
+
+The saved games are backed up automatically, once a day by default: a complete, consistent copy of the database,
+taken while the server runs, named by when it was made (`games-20261119-083000.sqlite3`), keeping the newest seven.
+They go to `/data/backups`, which protects against corruption and mistakes but not against losing the volume itself, so
+for real safety point `BACKUP_DIR` at a different disk (`BACKUP_DIR=/backups` with a second volume mounted there), or
+sync the folder somewhere else. `/healthz` reports `lastBackup`, so a monitor can alert if backups stop.
+
+To restore, stop the container, copy the backup over the live database, and start it again:
+
+```sh
+docker compose stop board-games
+docker run --rm -v board-games-data:/data -v "$PWD":/from alpine \
+  sh -c 'cp /from/games-20261119-083000.sqlite3 /data/games.sqlite3 && rm -f /data/games.sqlite3-wal /data/games.sqlite3-shm && chown 10001 /data/games.sqlite3'
+docker compose start board-games
+```
+
+Players' tokens are in the saved games, so everyone can come back to their games as they were at the time of the backup.
 
 ## Security
 
