@@ -1,4 +1,5 @@
 import { connect } from '../shared/connection.js';
+import { forgetGame, getGame, newToken, resumableGames, saveGame } from '../shared/saved-games.js';
 import { mountThemePickers } from '../shared/theme.js';
 import { boardRatio, createBoardView } from './board-view.js';
 import './camelot.css';
@@ -11,22 +12,14 @@ const $ = (id) => document.getElementById(id);
 installSprite();
 mountThemePickers(document.querySelectorAll('[data-theme-picker]'));
 
-// leaving a game that is still going ends it for the opponent too, so check first
+// Leaving a game doesn't end it: it can be resumed from the menu. Closing the socket
+// properly, rather than just navigating away, tells the opponent straight away.
 document.querySelectorAll('[data-leaves-game]').forEach((link) => {
-  link.addEventListener('click', (event) => {
-    if (!session || isOver(session.state)) {
-      return;
-    }
-    if (confirm('Leave this game? Your opponent will be disconnected.')) {
-      // say goodbye properly, so the opponent finds out straight away
-      connection.close();
-    } else {
-      event.preventDefault();
-    }
-  });
+  link.addEventListener('click', () => connection?.close());
 });
 
 const SIDE_NAMES = { white: 'White', black: 'Black' };
+const VARIANT_NAMES = { camelot: 'Camelot', cam: 'Cam' };
 const otherSide = (side) => (side === 'white' ? 'black' : 'white');
 
 const pieceOwner = (piece) => (piece <= 2 ? 'white' : 'black');
@@ -35,6 +28,7 @@ const pieceOwner = (piece) => (piece <= 2 ? 'white' : 'black');
 const isOver = (state) => Boolean(state.winner || state.draw);
 
 let connection = null;
+let currentCode = null;
 let session = null; // set once an opponent has joined
 
 const view = createBoardView($('board'), {
@@ -59,22 +53,63 @@ function showProblem(text) {
   }
 }
 
+/** Keep the game's code in the address bar, so reloading or bookmarking the page returns to it. */
+function keepInAddressBar(code) {
+  history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({ gamecode: code })}`);
+}
+
 function start(code, side, variant) {
+  currentCode = code;
+  keepInAddressBar(code);
+
+  // Remember who we are before anything is sent: a reload before the server has answered
+  // must come back as the same player. The entry stays pending until the server confirms it.
+  if (!getGame(code)) {
+    saveGame(code, { token: newToken(), side, variant, pending: true });
+  }
+  const { token } = getGame(code);
+
   $('menu').hidden = true;
   $('waiting').hidden = false;
   $('invite-link').textContent = inviteLink(code);
   $('game-code').textContent = code;
 
-  connection = connect({ code, side, variant });
-  connection.onRefused((reason) => showProblem(`Could not join the game: ${reason}.`));
-  connection.onLost(() => {
-    if (!session || !isOver(session.state)) {
-      showProblem('The connection to the server was lost.');
+  // The token is how the server knows who we are, including after a reload or a restart.
+  // `resume` says we have been in this game before, so a game that has gone is an error
+  // and not a new game; it is only set once the server has confirmed the game to us.
+  connection = connect(() => ({ code, token, resume: Boolean(getGame(code)) && !getGame(code).pending, side, variant }));
+
+  connection.onRefused((reason, reasonCode) => {
+    if (reasonCode === 'not-found' || getGame(code)?.pending) {
+      forgetGame(code); // nothing to come back to
     }
+    showProblem(reasonCode === 'not-found' ? reason : `Could not join the game: ${reason}.`);
+  });
+  connection.onStatus((connected) => {
+    $('connection-banner').hidden = connected;
   });
 
-  connection.on('game-ready', ({ side: yourSide, state }) => begin(code, yourSide, state));
+  connection.on('waiting', () => {
+    saveGame(code, { token, variant, pending: false });
+  });
+  connection.on('game-ready', ({ side: yourSide, state, chat, opponentConnected }) => {
+    saveGame(code, { token, side: yourSide, variant: state.variant, over: isOver(state), pending: false });
+    begin(code, yourSide, state, chat, opponentConnected);
+    if (isOver(state)) {
+      showResult(); // coming back to a finished game shows how it ended
+    }
+  });
   connection.on('game-state', ({ state }) => applyState(state));
+  connection.on('opponent-status', ({ connected }) => {
+    if (session) {
+      session.opponentConnected = connected;
+      renderPlayers();
+    }
+  });
+  connection.on('game-cancelled', () => {
+    forgetGame(code);
+    location.href = location.pathname;
+  });
   connection.on('move-rejected', ({ error }) => {
     if (session) {
       session.pending = false;
@@ -94,6 +129,9 @@ function start(code, side, variant) {
       render();
     }
   });
+  connection.on('action-rejected', ({ error }) => {
+    $('notice').textContent = error;
+  });
   connection.on('draw-rejected', ({ error }) => {
     $('notice').textContent = error;
   });
@@ -101,11 +139,6 @@ function start(code, side, variant) {
     $('notice').textContent = 'Your opponent declined the draw.';
   });
   connection.on('chat', ({ text }) => addChat(text, false));
-  connection.on('opponent-disconnected', () => {
-    if (!session || !isOver(session.state)) {
-      showProblem('Your opponent disconnected.');
-    }
-  });
 }
 
 $('new-game').addEventListener('submit', (event) => {
@@ -123,7 +156,10 @@ $('join-game').addEventListener('submit', (event) => {
 });
 
 $('cancel').addEventListener('click', () => {
-  location.href = location.pathname;
+  connection?.send('cancel-game');
+  forgetGame(currentCode);
+  // give the message a moment to leave before the page goes
+  setTimeout(() => (location.href = location.pathname), 150);
 });
 
 $('copy').addEventListener('click', async () => {
@@ -146,8 +182,11 @@ for (const dialog of document.querySelectorAll('dialog')) {
 
 // --- game -------------------------------------------------------------------
 
-function begin(code, side, state) {
-  session = { code, side, state, path: [], pending: false, opponentPath: [], opponentHover: null };
+function begin(code, side, state, chat = [], opponentConnected = true) {
+  session = { code, side, state, path: [], pending: false, opponentPath: [], opponentHover: null, opponentConnected };
+  $('notice').textContent = '';
+  $('chat-log').replaceChildren();
+  chat.forEach((message) => addChat(message.text, message.side === side));
   // the game on the other end decides which game this is, whatever the lobby said
   $('brand-name').textContent = state.variantName;
   $('lobby').hidden = true;
@@ -164,6 +203,7 @@ function applyState(state) {
   render();
 
   if (isOver(state)) {
+    saveGame(session.code, { over: true });
     showResult();
   }
 }
@@ -201,6 +241,11 @@ function handleSquare(index) {
   }
 }
 
+$('resign').addEventListener('click', () => {
+  if (confirm('Resign this game? Your opponent will win.')) {
+    connection.send('resign');
+  }
+});
 $('offer-draw').addEventListener('click', () => connection.send('offer-draw'));
 $('claim-draw').addEventListener('click', () => connection.send('claim-draw'));
 $('accept-draw').addEventListener('click', () => connection.send('respond-draw', { accept: true }));
@@ -293,14 +338,15 @@ function renderPlayers() {
   const counts = { white: 0, black: 0 };
   state.board.forEach((piece) => piece && counts[pieceOwner(piece)]++);
 
-  const row = (who, owner) => `
+  const away = '<span class="away" title="Not connected right now. The game waits for them.">away</span>';
+  const row = (who, owner, isAway = false) => `
     <div class="player${state.turn === owner && !isOver(state) ? ' active' : ''}">
       <svg class="shield" viewBox="0 0 100 120" aria-hidden="true"><use href="#shield-${owner}" /></svg>
-      <span class="who"><strong>${who}</strong><small>${SIDE_NAMES[owner]}</small></span>
+      <span class="who"><strong>${who}${isAway ? away : ''}</strong><small>${SIDE_NAMES[owner]}</small></span>
       <span class="count" title="Pieces left">${counts[owner]}</span>
     </div>`;
 
-  $('players').innerHTML = row('You', side) + row('Opponent', otherSide(side));
+  $('players').innerHTML = row('You', side) + row('Opponent', otherSide(side), !session.opponentConnected);
 }
 
 function renderControls(myTurn) {
@@ -343,7 +389,8 @@ function renderDrawControls() {
   const offerFromThem = open && state.drawOffer && state.drawOffer !== side;
   const claimable = state.claimable.repetition || state.claimable.fiftyMoves;
 
-  $('draw-row').hidden = !open;
+  $('actions-row').hidden = isOver(state);
+  $('offer-draw').hidden = !state.drawsAllowed;
   $('draw-offer').hidden = !offerFromThem;
   $('claim-draw').hidden = !claimable;
   $('claim-draw').textContent = state.claimable.repetition ? 'Claim a draw (repetition)' : 'Claim a draw (50 moves)';
@@ -379,6 +426,7 @@ function showResult() {
     castle,
     capture: won ? 'Huzzah! Not a single enemy piece is left standing.' : 'Not a single one of your pieces is left standing.',
     blocked: won ? 'Huzzah! Your opponent is hemmed in with no move to make.' : 'You are hemmed in with no move to make.',
+    resignation: won ? 'Your opponent has resigned the field.' : 'You resigned the game.',
   };
 
   const draws = {
@@ -395,11 +443,14 @@ function showResult() {
   // the next game swaps colours: whoever clicks first creates it and asks for the other side
   $('play-again').onclick = () => {
     connection.close();
+    forgetGame(code);
     const next = new URLSearchParams({ gamecode: rematchCode(code), side: otherSide(side), variant: state.variant });
     location.href = `${location.pathname}?${next}`;
   };
 
-  $('over').showModal();
+  if (!$('over').open) {
+    $('over').showModal();
+  }
 }
 
 // --- chat -------------------------------------------------------------------
@@ -423,16 +474,60 @@ $('chat-form').addEventListener('submit', (event) => {
   }
 });
 
+// --- games to come back to --------------------------------------------------
+
+function renderResumeList() {
+  const games = resumableGames();
+  $('resume').hidden = games.length === 0;
+
+  $('resume-list').replaceChildren(
+    ...games.map((game) => {
+      const item = document.createElement('li');
+
+      const info = document.createElement('span');
+      info.className = 'resume-info';
+      const name = document.createElement('strong');
+      name.textContent = VARIANT_NAMES[game.variant] ?? 'Game';
+      const detail = document.createElement('small');
+      detail.textContent = `${game.side ? `As ${SIDE_NAMES[game.side]}` : 'Waiting for an opponent'} · ${game.code}`;
+      info.append(name, detail);
+
+      const resume = document.createElement('button');
+      resume.className = 'btn';
+      resume.type = 'button';
+      resume.textContent = 'Resume';
+      resume.addEventListener('click', () => start(game.code, game.side, game.variant));
+
+      const forget = document.createElement('button');
+      forget.className = 'forget';
+      forget.type = 'button';
+      forget.textContent = '✕';
+      forget.title = 'Forget this game';
+      forget.setAttribute('aria-label', `Forget the game ${game.code}`);
+      forget.addEventListener('click', () => {
+        forgetGame(game.code);
+        renderResumeList();
+      });
+
+      item.append(info, resume, forget);
+      return item;
+    }),
+  );
+}
+
 // --- go ---------------------------------------------------------------------
 
 const params = new URLSearchParams(location.search);
 const wantedVariant = params.get('variant') ?? undefined;
 if (params.get('gamecode')) {
   start(params.get('gamecode'), params.get('side') ?? 'random', wantedVariant);
-} else if (wantedVariant) {
-  // a link from the front page to one of the games
-  const radio = document.querySelector(`input[name=variant][value="${wantedVariant}"]`);
-  if (radio) {
-    radio.checked = true;
+} else {
+  renderResumeList();
+  if (wantedVariant) {
+    // a link from the front page to one of the games
+    const radio = document.querySelector(`input[name=variant][value="${wantedVariant}"]`);
+    if (radio) {
+      radio.checked = true;
+    }
   }
 }

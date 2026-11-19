@@ -1,20 +1,23 @@
-import random
+import re
 from os import getenv, path
 
 from dotenv import load_dotenv
 from flask import Flask, abort, redirect, request, send_from_directory
+
 # python-socketio only passes a refusal reason on to the client for its own exception
 from flask_socketio import ConnectionRefusedError, SocketIO, emit
 
-import rules
-from game import MAX_PATH_LENGTH, Game, IllegalMove
-from lobby import JoinResult, Lobby
-from variants import DEFAULT_VARIANT, VARIANTS
+from game import MAX_PATH_LENGTH, IllegalMove
+from registry import Refused, Registry
+from store import open_store
+from variants import VARIANTS
 
 load_dotenv()
 
 BASE_DIR = path.dirname(path.abspath(__file__))
 MAX_CHAT_LENGTH = 500
+# tokens are made by the browser (or by the server when there isn't one): url-safe base64 of random bytes
+TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{16,128}")
 
 
 def allowed_origins():
@@ -29,17 +32,31 @@ def allowed_origins():
     return "*" if value.strip() == "*" else [o.strip() for o in value.split(",") if o.strip()]
 
 
+def ttl_from_environment():
+    """How long games may sit unchanged before they are deleted (see registry.DEFAULT_TTL)."""
+    settings = {
+        "waiting": ("WAITING_TTL_HOURS", 3600),
+        "playing": ("GAME_TTL_DAYS", 24 * 3600),
+        "finished": ("FINISHED_TTL_HOURS", 3600),
+    }
+    ttl = {}
+    for status, (name, unit) in settings.items():
+        value = getenv(name)
+        if value:
+            ttl[status] = float(value) * unit
+    return ttl
+
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = getenv("SECRET_KEY")
 app.config["STATIC_DIR"] = path.abspath(getenv("STATIC_DIR", path.join(BASE_DIR, "client", "dist")))
 # Threading mode (with simple-websocket) works under gunicorn's gthread worker
-# without monkey patching. Game state is in process memory, so run one worker.
+# without monkey patching. Games are kept in this process's memory (and saved to
+# DATA_DIR), so run one worker.
 socketio = SocketIO(app, async_mode="threading", cors_allowed_origins=allowed_origins())
 
-lobby = Lobby()
-sessions = {}  # sid -> (Game, side), for players currently paired
-requested_sides = {}  # sid -> side the waiting player asked for
-requested_variants = {}  # sid -> variant the waiting player asked for
+# DATA_DIR is where games are saved so they survive a restart; set it empty to keep them in memory only
+registry = Registry(open_store(getenv("DATA_DIR", path.join(BASE_DIR, "data"))), ttl=ttl_from_environment())
 
 
 def valid_square(value, size):
@@ -50,123 +67,196 @@ def valid_path(value, size):
     return isinstance(value, list) and len(value) <= MAX_PATH_LENGTH and all(valid_square(v, size) for v in value)
 
 
+# --- talking to players -------------------------------------------------------
+
+
+def send_to_player(record, token, payload):
+    """Send to every connection the player holding `token` has open."""
+    for sid in registry.sids(record, token):
+        emit("message", payload, to=sid)
+
+
+def ready_message(record, token):
+    """The whole game as one player sees it: sent when a game starts and whenever they come back."""
+    opponent = registry.opponent_token(record, token)
+    return {
+        "topic": "game-ready",
+        "message": {
+            "side": registry.seat_of(record, token),
+            "token": token,
+            "state": record.game.snapshot(),
+            "chat": record.chat,
+            "opponentConnected": registry.online(record, opponent),
+        },
+    }
+
+
+def presence_message(connected):
+    return {"topic": "opponent-status", "message": {"connected": connected}}
+
+
+def broadcast_state(record):
+    update = {"topic": "game-state", "message": {"state": record.game.snapshot()}}
+    for token in record.seats.values():
+        send_to_player(record, token, update)
+
+
+# --- connecting ---------------------------------------------------------------
+
+
 @socketio.on("connect")
 def handle_connect(auth=None):
     auth = auth if isinstance(auth, dict) else {}
+
     game_code = auth.get("code")
     if not isinstance(game_code, str) or not game_code.strip() or len(game_code) > 64:
         raise ConnectionRefusedError("Missing game code", {"code": "missing-code"})
     game_code = game_code.strip()
+
+    token = auth.get("token")
+    if token is not None and not (isinstance(token, str) and TOKEN_PATTERN.fullmatch(token)):
+        raise ConnectionRefusedError("Invalid player token", {"code": "bad-token"})
 
     # Only the player who creates the game gets to choose the variant; whoever joins plays it.
     variant_key = auth.get("variant")
     if variant_key is not None and (not isinstance(variant_key, str) or variant_key not in VARIANTS):
         raise ConnectionRefusedError("Unknown game variant", {"code": "unknown-variant"})
 
-    # Whoever gets here first picks a side; anything else means "random". This is
-    # recorded before joining so a quick opponent can't pair up before it is stored.
-    requested_sides[request.sid] = auth.get("side") if auth.get("side") in (rules.WHITE, rules.BLACK) else None
-    requested_variants[request.sid] = VARIANTS.get(variant_key)
-    result, opponent_sid = lobby.join(game_code, request.sid)
-
-    if result is JoinResult.FULL:
-        requested_sides.pop(request.sid, None)
-        requested_variants.pop(request.sid, None)
+    try:
+        attached = registry.attach(
+            request.sid,
+            game_code,
+            token=token,
+            resume=auth.get("resume") is True,
+            side=auth.get("side"),
+            variant_key=variant_key,
+        )
+    except Refused as refusal:
         # Refusing the connection tells the client why via connect_error: the message
         # becomes error.message and the data error.data (which a network failure lacks).
-        raise ConnectionRefusedError("Game already full", {"code": "full"})
+        raise ConnectionRefusedError(refusal.message, {"code": refusal.code})
 
-    if result is JoinResult.WAITING:
-        return
+    record, token = attached.record, attached.token
 
-    requested_sides.pop(request.sid, None)
-    requested_variants.pop(request.sid, None)
-    variant = requested_variants.pop(opponent_sid, None) or DEFAULT_VARIANT
-    creator_side = requested_sides.pop(opponent_sid, None) or random.choice((rules.WHITE, rules.BLACK))
-    game = Game(variant)
-    sessions[opponent_sid] = (game, creator_side)
-    sessions[request.sid] = (game, rules.other(creator_side))
-    for sid, (_, side) in ((opponent_sid, sessions[opponent_sid]), (request.sid, sessions[request.sid])):
-        emit("message", {"topic": "game-ready", "message": {"side": side, "state": game.snapshot()}}, to=sid)
+    if attached.kind == "waiting":
+        emit("message", {"topic": "waiting", "message": {"token": token}})
+    elif attached.kind == "started":
+        # the creator may have been waiting on any number of connections (or none, if they have left)
+        send_to_player(record, record.creator_token, ready_message(record, record.creator_token))
+        emit("message", ready_message(record, token))
+    else:
+        emit("message", ready_message(record, token))
+        opponent = registry.opponent_token(record, token)
+        if attached.first_connection and opponent:
+            send_to_player(record, opponent, presence_message(True))
 
 
 @socketio.on("disconnect")
 def handle_disconnect(reason=None):
-    sessions.pop(request.sid, None)
-    requested_sides.pop(request.sid, None)
-    requested_variants.pop(request.sid, None)
-    opponent_sid = lobby.leave(request.sid)
-    if opponent_sid is not None:
-        sessions.pop(opponent_sid, None)
-        emit("message", {"topic": "opponent-disconnected", "message": {}}, to=opponent_sid)
+    # Leaving doesn't end the game: the player can come back with their token.
+    # Their opponent is just told they are away.
+    detached = registry.detach(request.sid)
+    if detached and detached.offline and detached.record.game:
+        opponent = registry.opponent_token(detached.record, detached.token)
+        if opponent:
+            send_to_player(detached.record, opponent, presence_message(False))
+
+
+# --- messages -----------------------------------------------------------------
 
 
 @socketio.on("message")
 def handle_message(message):
-    opponent_sid = lobby.opponent(request.sid)
-    session = sessions.get(request.sid)
-    if opponent_sid is None or session is None:
-        emit("error", {"error": "No opponent connected"})
+    session = registry.session(request.sid)
+    if session is None:
+        emit("error", {"error": "Not in a game"})
         return
 
     topic = message.get("topic") if isinstance(message, dict) else None
     body = message.get("message") if isinstance(message, dict) else None
     body = body if isinstance(body, dict) else {}
+    record = session.record
+
+    if topic == "cancel-game":
+        if registry.cancel(request.sid):
+            emit("message", {"topic": "game-cancelled", "message": {}})
+        return
+
+    game = record.game
+    if game is None:
+        emit("error", {"error": "No opponent connected"})
+        return
+
+    seat = session.seat
+    opponent = registry.opponent_token(record, session.token)
+    size = game.variant.size
 
     if topic == "end-turn":
-        handle_end_turn(body, session, opponent_sid)
+        handle_end_turn(record, seat, body)
     elif topic in ("offer-draw", "respond-draw", "claim-draw"):
-        handle_draw(topic, body, session, opponent_sid)
-    elif topic == "preview" and valid_path(body.get("moves"), session[0].variant.size):
-        emit("message", {"topic": "opponent-preview", "message": {"moves": body["moves"]}}, to=opponent_sid)
-    elif topic == "hover" and (body.get("index") is None or valid_square(body.get("index"), session[0].variant.size)):
-        emit("message", {"topic": "opponent-hover", "message": {"index": body.get("index")}}, to=opponent_sid)
+        handle_draw(topic, record, seat, opponent, body)
+    elif topic == "resign":
+        handle_resign(record, seat)
+    elif topic == "preview" and valid_path(body.get("moves"), size):
+        send_to_player(record, opponent, {"topic": "opponent-preview", "message": {"moves": body["moves"]}})
+    elif topic == "hover" and (body.get("index") is None or valid_square(body.get("index"), size)):
+        send_to_player(record, opponent, {"topic": "opponent-hover", "message": {"index": body.get("index")}})
     elif topic == "chat" and isinstance(body.get("text"), str):
         text = body["text"].strip()[:MAX_CHAT_LENGTH]
         if text:
-            emit("message", {"topic": "chat", "message": {"text": text}}, to=opponent_sid)
+            record.add_chat(seat, text)
+            registry.save(record)
+            send_to_player(record, opponent, {"topic": "chat", "message": {"text": text}})
     # anything else is dropped: clients can't speak for the server
 
 
-def handle_end_turn(body, session, opponent_sid):
-    game, side = session
-
+def handle_end_turn(record, seat, body):
     try:
-        game.play_turn(side, body.get("moves"))
+        record.game.play_turn(seat, body.get("moves"))
     except IllegalMove as e:
         emit("message", {"topic": "move-rejected", "message": {"error": str(e)}})
         return
 
-    broadcast_state(game, opponent_sid)
+    registry.save(record)
+    broadcast_state(record)
 
 
-def broadcast_state(game, opponent_sid):
-    update = {"topic": "game-state", "message": {"state": game.snapshot()}}
-    emit("message", update)
-    emit("message", update, to=opponent_sid)
-
-
-def handle_draw(topic, body, session, opponent_sid):
+def handle_draw(topic, record, seat, opponent, body):
     """Offers, answers to offers, and claims, in variants where the game can be drawn."""
-    game, side = session
+    game = record.game
     declined = False
 
     try:
         if topic == "offer-draw":
-            game.offer_draw(side)
+            game.offer_draw(seat)
         elif topic == "claim-draw":
-            game.claim_draw(side)
+            game.claim_draw(seat)
         else:
             accept = body.get("accept") is True
-            game.respond_to_draw(side, accept)
+            game.respond_to_draw(seat, accept)
             declined = not accept
     except IllegalMove as e:
         emit("message", {"topic": "draw-rejected", "message": {"error": str(e)}})
         return
 
-    broadcast_state(game, opponent_sid)
+    registry.save(record)
+    broadcast_state(record)
     if declined:
-        emit("message", {"topic": "draw-declined", "message": {}}, to=opponent_sid)
+        send_to_player(record, opponent, {"topic": "draw-declined", "message": {}})
+
+
+def handle_resign(record, seat):
+    try:
+        record.game.resign(seat)
+    except IllegalMove as e:
+        emit("message", {"topic": "action-rejected", "message": {"error": str(e)}})
+        return
+
+    registry.save(record)
+    broadcast_state(record)
+
+
+# --- serving the client -------------------------------------------------------
 
 
 @app.get("/healthz")

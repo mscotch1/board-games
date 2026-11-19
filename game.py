@@ -2,7 +2,7 @@ from collections import Counter
 from threading import Lock
 
 import rules
-from variants import DEFAULT_VARIANT
+from variants import DEFAULT_VARIANT, VARIANTS
 
 # Longer than any real turn; just bounds the work a client can ask for.
 MAX_PATH_LENGTH = 64
@@ -10,6 +10,9 @@ MAX_PATH_LENGTH = 64
 # Fifty moves by each side with no capture and no piece reaching a castle.
 FIFTY_MOVE_PLIES = 100
 REPETITIONS_TO_CLAIM = 3
+
+# bump when the saved form changes in a way old saves can't be read
+SAVE_VERSION = 1
 
 
 class IllegalMove(Exception):
@@ -111,6 +114,15 @@ class Game:
             else:
                 self.winner, self.win_reason = mover, "blocked"
 
+    def resign(self, player):
+        """`player` gives up, so the opponent wins. Raises IllegalMove if the game is over."""
+        with self._lock:
+            if self.over:
+                raise IllegalMove("The game is over")
+            self.winner, self.win_reason = rules.other(player), "resignation"
+            self.draw_offer = None
+            self._legal = []
+
     # --- draws ----------------------------------------------------------------
 
     def claim_draw(self, player):
@@ -155,6 +167,73 @@ class Game:
         self.draw_reason = reason
         self.draw_offer = None
         self._legal = []
+
+    # --- saving ---------------------------------------------------------------
+
+    def to_dict(self):
+        """Everything needed to carry on this game later, as JSON-ready data."""
+        with self._lock:
+            last = None
+            if self.last_turn is not None:
+                side, turn = self.last_turn
+                last = {"player": side, **_turn_json(turn)}
+
+            return {
+                "version": SAVE_VERSION,
+                "variant": self.variant.key,
+                "board": list(self.board),
+                "turn": self.turn,
+                "winner": self.winner,
+                "winReason": self.win_reason,
+                "drawReason": self.draw_reason,
+                "drawOffer": self.draw_offer,
+                "lastTurn": last,
+                "castleMoves": dict(self.castle_moves),
+                "pliesWithoutProgress": self.plies_without_progress,
+                # board as hex (every square holds 0-4), which keeps repeated positions compact
+                "positions": [[bytes(board).hex(), turn, count] for (board, turn), count in self._positions.items()],
+            }
+
+    @classmethod
+    def from_dict(cls, data):
+        """The game saved by `to_dict`. Raises ValueError if the data isn't a valid save."""
+        try:
+            if data["version"] != SAVE_VERSION:
+                raise ValueError(f"unknown save version {data['version']!r}")
+
+            variant = VARIANTS[data["variant"]]
+            game = cls(variant)
+
+            board = data["board"]
+            if len(board) != variant.size or any(type(p) is not int or not 0 <= p <= 4 for p in board):
+                raise ValueError("the saved board doesn't fit the variant")
+            if data["turn"] not in (rules.WHITE, rules.BLACK):
+                raise ValueError("the saved turn is not a side")
+
+            game.board = list(board)
+            game.turn = data["turn"]
+            game.winner = data["winner"]
+            game.win_reason = data["winReason"]
+            game.draw_reason = data["drawReason"]
+            game.draw_offer = data["drawOffer"]
+            game.castle_moves = {side: int(data["castleMoves"][side]) for side in (rules.WHITE, rules.BLACK)}
+            game.plies_without_progress = int(data["pliesWithoutProgress"])
+
+            last = data["lastTurn"]
+            if last is not None:
+                game.last_turn = (last["player"], rules.Turn(tuple(last["moves"]), tuple(last["jumped"])))
+
+            game._positions = Counter(
+                {(tuple(bytes.fromhex(hex_board)), turn): count for hex_board, turn, count in data["positions"]}
+            )
+            game._legal = (
+                []
+                if game.over
+                else rules.legal_turns(variant, game.board, game.turn, game.castle_moves[game.turn])
+            )
+            return game
+        except (KeyError, TypeError, AttributeError, IndexError) as e:
+            raise ValueError(f"not a valid saved game: {e!r}") from e
 
     # --- snapshots ------------------------------------------------------------
 

@@ -21,6 +21,8 @@
     <script type="module" src="/src/camelot/main.js"></script>
   </head>
   <body>
+    <div id="connection-banner" class="connection-banner" role="status" hidden>Connection lost. Trying to reconnect&hellip;</div>
+
     <div id="lobby" class="lobby">
       <div class="bunting" aria-hidden="true"></div>
       <div class="skyline" aria-hidden="true"></div>
@@ -39,6 +41,11 @@
         </header>
 
         <section id="menu" class="stack">
+          <section id="resume" class="resume" hidden>
+            <h2 class="display">Your games</h2>
+            <ul id="resume-list" class="resume-list"></ul>
+          </section>
+
           <form id="new-game" class="stack">
             <fieldset class="choices variants">
               <legend>Game</legend>
@@ -132,9 +139,10 @@
                 <button id="decline-draw" class="btn" type="button">Decline</button>
               </div>
             </div>
-            <div id="draw-row" class="row draw-row" hidden>
+            <div id="actions-row" class="row actions-row" hidden>
               <button id="offer-draw" class="btn ghost" type="button">Offer a draw</button>
               <button id="claim-draw" class="btn ghost" type="button" hidden>Claim a draw</button>
+              <button id="resign" class="btn ghost" type="button">Resign</button>
             </div>
           </section>
 

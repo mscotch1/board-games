@@ -1,8 +1,12 @@
+import types
+
 import pytest
 
 import app as app_module
 import rules
+from registry import Registry
 from rules import BLACK, WHITE
+from store import MemoryStore
 from variants import CAMELOT
 
 COLS = CAMELOT.cols
@@ -14,18 +18,17 @@ def sq(row, col):
 
 @pytest.fixture(autouse=True)
 def fresh_state(monkeypatch):
-    monkeypatch.setattr(app_module, "lobby", app_module.Lobby())
-    monkeypatch.setattr(app_module, "sessions", {})
-    monkeypatch.setattr(app_module, "requested_sides", {})
-    monkeypatch.setattr(app_module, "requested_variants", {})
+    monkeypatch.setattr(app_module, "registry", Registry(MemoryStore()))
 
 
-def connect(code="abc", side=None):
+def connect(code="abc", side=None, token=None):
     auth = {}
     if code is not None:
         auth["code"] = code
     if side is not None:
         auth["side"] = side
+    if token is not None:
+        auth["token"] = token
     return app_module.socketio.test_client(app_module.app, auth=auth)
 
 
@@ -35,9 +38,14 @@ def payload(m):
     return args[0] if isinstance(args, list) else args
 
 
-def messages(client):
+def raw_messages(client):
     """The (topic, message) of every message the client received."""
     return [(payload(m)["topic"], payload(m)["message"]) for m in client.get_received() if m["name"] == "message"]
+
+
+def messages(client):
+    """Like raw_messages, but leaving out the \"waiting\" a creator gets on arriving."""
+    return [(topic, message) for topic, message in raw_messages(client) if topic != "waiting"]
 
 
 def errors(client):
@@ -52,9 +60,12 @@ def pair(creator_side=WHITE, code="abc"):
     return creator, joiner
 
 
-def current_game():
-    (game, _), = {id(g): (g, s) for g, s in app_module.sessions.values()}.values()
-    return game
+def record(code="abc"):
+    return {r.code: r for r in app_module.registry.records()}[code]
+
+
+def current_game(code="abc"):
+    return record(code).game
 
 
 def end_turn(client, moves):
@@ -74,10 +85,12 @@ def test_connecting_without_auth_is_refused():
     assert not app_module.socketio.test_client(app_module.app).is_connected()
 
 
-def test_first_player_waits_without_any_message():
+def test_first_player_waits_and_is_given_a_token():
     a = connect()
     assert a.is_connected()
-    assert a.get_received() == []
+    (topic, message), = raw_messages(a)
+    assert topic == "waiting"
+    assert isinstance(message["token"], str) and len(message["token"]) >= 16
 
 
 def test_two_players_get_game_ready_with_the_full_state():
@@ -104,7 +117,7 @@ def test_the_creator_gets_the_side_they_asked_for(requested):
 
 @pytest.mark.parametrize("side", [None, "random", "purple", 3])
 def test_other_requests_for_a_side_mean_random(monkeypatch, side):
-    monkeypatch.setattr(app_module.random, "choice", lambda options: BLACK)
+    monkeypatch.setattr(app_module.registry, "_rng", types.SimpleNamespace(choice=lambda options: BLACK))
     a, b = connect(side=side), connect()
     assert messages(a)[0][1]["side"] == BLACK
     assert messages(b)[0][1]["side"] == WHITE
@@ -122,9 +135,9 @@ def test_third_player_is_refused():
     assert a.get_received() == [] and b.get_received() == []
 
 
-def test_requested_sides_do_not_leak():
-    pair()
-    assert app_module.requested_sides == {}
+def test_the_creators_side_request_is_kept_with_the_game():
+    connect(side=BLACK)
+    assert record("abc").creator_side == BLACK
 
 
 # --- relayed messages -------------------------------------------------------
@@ -135,7 +148,7 @@ def test_chat_goes_to_the_opponent_only():
     other = connect("xyz")
     a.emit("message", {"topic": "chat", "message": {"text": "  hello  "}})
     assert messages(b) == [("chat", {"text": "hello"})]
-    assert a.get_received() == [] and other.get_received() == []
+    assert a.get_received() == [] and messages(other) == []
 
 
 def test_chat_is_trimmed_and_limited():
@@ -286,30 +299,36 @@ def test_winning_turn_reports_the_winner_and_ends_the_game():
 # --- leaving ----------------------------------------------------------------
 
 
-def test_disconnect_clears_the_session_and_notifies_the_opponent():
+def test_disconnecting_marks_the_player_away_but_keeps_the_game():
     a, b = pair()
-    assert len(app_module.sessions) == 2
     a.disconnect()
-    assert app_module.sessions == {}
-    assert messages(b) == [("opponent-disconnected", {})]
+    assert messages(b) == [("opponent-status", {"connected": False})]
+    assert current_game().over is False
+    assert b.is_connected()
 
 
-def test_message_after_opponent_left_does_not_crash():
+def test_a_player_can_keep_playing_while_their_opponent_is_away():
+    white, black = pair(WHITE)
+    black.disconnect()
+    white.get_received()
+    end_turn(white, [sq(10, 2), sq(11, 2)])
+    assert [t for t, _ in messages(white)] == ["game-state"]
+    assert current_game().turn == BLACK
+
+
+def test_chat_while_the_opponent_is_away_is_kept_without_an_error():
     a, b = pair()
     a.disconnect()
     b.get_received()
     b.emit("message", {"topic": "chat", "message": {"text": "hello?"}})
-    assert errors(b) == ["No opponent connected"]
-    assert b.is_connected()
+    assert b.get_received() == []
+    assert record("abc").chat == [{"side": BLACK, "text": "hello?"}]
 
 
-def test_waiting_player_disconnect_frees_the_code_and_their_request():
+def test_a_waiting_creator_who_leaves_keeps_their_game_open():
     a = connect(side=BLACK)
     a.disconnect()
-    assert app_module.requested_sides == {}
-
-    b, c = connect(), connect()
-    assert messages(b)[0][0] == messages(c)[0][0] == "game-ready"
+    assert record("abc").status == "waiting"
 
 
 # --- serving the client -----------------------------------------------------
@@ -442,7 +461,7 @@ def test_a_joiner_asking_for_cam_gets_the_creators_camelot_game():
 @pytest.mark.parametrize("variant", ["checkers", "", "CAM", 3, ["cam"], {"cam": 1}])
 def test_unknown_variants_are_refused(variant):
     assert not connect_with(variant).is_connected()
-    assert app_module.requested_variants == {}
+    assert app_module.registry.records() == []
 
 
 def test_the_unknown_variant_refusal_says_why():
@@ -453,17 +472,6 @@ def test_the_unknown_variant_refusal_says_why():
         with pytest.raises(SocketIORefusal) as raised:
             app_module.handle_connect({"code": "abc", "variant": "checkers"})
     assert raised.value.error_args == {"message": "Unknown game variant", "data": {"code": "unknown-variant"}}
-
-
-def test_requested_variants_do_not_leak():
-    connect_with("cam")  # waiting
-    assert len(app_module.requested_variants) == 1
-    pair(code="other")
-    assert len(app_module.requested_variants) == 1  # only the first, still-waiting player's
-
-    waiting = connect_with("cam", code="third")
-    waiting.disconnect()
-    assert len(app_module.requested_variants) == 1
 
 
 def test_a_cam_game_is_played_with_cam_rules():

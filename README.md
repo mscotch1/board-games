@@ -2,8 +2,8 @@
 
 Two-player board games played in the browser: Camelot, and its pocket cousin Cam.
 
-A Flask + Socket.IO server owns each game (it knows the rules and validates every
-move); the client is a small Vite-built page that draws the board and sends moves.
+A Flask + Socket.IO server owns each game (it knows the rules, validates every
+move and saves the game); the client is a small Vite-built page that draws the board and sends moves.
 
 ## Camelot rules
 
@@ -42,6 +42,21 @@ knight's charges and mandatory capture are the same as in Camelot. What differs:
   capture every enemy piece.
 - **Your own castle:** you can't plain-move or canter into it, but you can jump into it. A piece that
   jumps in and can't jump on must leave on your next turn, ahead of any other move (jumping out if it can).
+
+## Leaving and coming back
+
+Games are saved after every move, so nothing is lost to a reload, a dropped connection or a server restart.
+
+- **Who you are:** the browser makes a secret token for each game and keeps it in `localStorage`; the server
+  recognises it and puts you back in your seat, with the board, the chat and whose turn it is. The address
+  bar keeps the game's code, so reloading or bookmarking the page returns to the game, and the menu lists
+  your unfinished games with a *Resume* button. Two tabs can play the same seat at once.
+- **Leaving doesn't end a game.** Your opponent just sees you as *away* and the game waits. If you want to
+  quit, *Resign* (the opponent wins). There are no clocks.
+- **Dropped connections** show a "reconnecting" banner and recover on their own.
+- **Expiry:** a game nobody has touched for a while is deleted: 24 hours if still waiting for an opponent,
+  7 days once started, and 24 hours after it finishes (so a result can still be looked at). A game with
+  someone connected is never deleted. A creator can cancel a game nobody has joined.
 
 ## Adding a variant
 
@@ -94,17 +109,27 @@ services:
     restart: unless-stopped
     ports:
       - "5000:5000"
+    volumes:
+      - board-games-data:/data   # saved games; without it a new container starts empty
     # environment:
     #   CORS_ALLOWED_ORIGINS: https://games.example.com   # only if a proxy rewrites the Host header
+
+volumes:
+  board-games-data:
 ```
 
 (If the package is private, `docker login ghcr.io` first.) The container serves everything on
 port 5000 and has a `/healthz` endpoint.
 
-Games live in memory, so the server **must run as a single worker** (the Dockerfile already does:
-one gunicorn worker with 100 threads), and a restart ends every game in progress.
+Games are held in the server's memory and saved to a SQLite file in `DATA_DIR` (`/data` in the image), so the
+server **must run as a single worker** (the Dockerfile already does: one gunicorn worker with 100 threads).
+Restarting or replacing the container keeps every game, as long as `/data` is a volume.
 
 | Variable               | Purpose                                                                 |
 | ---------------------- | ----------------------------------------------------------------------- |
 | `CORS_ALLOWED_ORIGINS` | Comma separated origins allowed to open a socket, or `*`. Defaults to same-origin. |
 | `STATIC_DIR`           | Where the built client is. Defaults to `client/dist`.                    |
+| `DATA_DIR`             | Where games are saved. Defaults to `./data`; set it empty to keep games in memory only. |
+| `WAITING_TTL_HOURS`    | Hours before a game nobody has joined is deleted. Default 24.            |
+| `GAME_TTL_DAYS`        | Days of inactivity before a game in progress is deleted. Default 7.      |
+| `FINISHED_TTL_HOURS`   | Hours a finished game is kept. Default 24.                               |
