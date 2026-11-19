@@ -23,6 +23,33 @@ def _turn_json(turn):
     return {"moves": list(turn.moves), "jumped": list(turn.jumped)}
 
 
+def _history_entry(entry, variant):
+    """A saved history entry, checked. Raises ValueError if it isn't a turn on this board."""
+    try:
+        moves, jumped, captured = entry["moves"], entry["jumped"], entry["captured"]
+        valid_square = lambda s: type(s) is int and 0 <= s < variant.size  # noqa: E731
+        if (
+            entry["player"] not in (rules.WHITE, rules.BLACK)
+            or not 2 <= len(moves) <= MAX_PATH_LENGTH
+            or not all(valid_square(s) for s in moves)
+            or len(jumped) != len(moves) - 1
+            or not all(s is None or valid_square(s) for s in jumped)
+            or type(entry["piece"]) is not int
+            or not 1 <= entry["piece"] <= 4
+            or not all(valid_square(s) and type(p) is int and 1 <= p <= 4 for s, p in captured)
+        ):
+            raise ValueError("a saved move isn't a valid turn")
+        return {
+            "player": entry["player"],
+            "moves": list(moves),
+            "jumped": list(jumped),
+            "piece": entry["piece"],
+            "captured": [[s, p] for s, p in captured],
+        }
+    except (KeyError, TypeError) as e:
+        raise ValueError(f"a saved move is malformed: {e!r}") from e
+
+
 class Game:
     """Authoritative state for one game: the board, whose turn it is, and how it ended.
 
@@ -40,6 +67,7 @@ class Game:
         self.draw_reason = None
         self.draw_offer = None  # the side that has offered a draw, if one is pending
         self.last_turn = None  # (side, Turn) of the most recent turn
+        self.history = []  # every turn played, oldest first (see _history_entry)
         self.castle_moves = {rules.WHITE: 0, rules.BLACK: 0}  # moves made between the castle squares
         self.plies_without_progress = 0
         self._positions = Counter({self._position(): 1})
@@ -75,6 +103,17 @@ class Game:
                 raise IllegalMove("It is not your turn")
 
             turn = self._find_legal_turn(moves)
+
+            # what the turn moved and took, written down before the board changes: it lets a client
+            # show the turn as it was played and wind the board back to any earlier position
+            self.history.append(
+                {
+                    "player": player,
+                    **_turn_json(turn),
+                    "piece": self.board[turn.moves[0]],
+                    "captured": [[square, self.board[square]] for square in turn.jumped if square is not None],
+                }
+            )
 
             self.board = rules.apply_turn(self.board, turn)
             self.last_turn = (player, turn)
@@ -190,6 +229,7 @@ class Game:
                 "lastTurn": last,
                 "castleMoves": dict(self.castle_moves),
                 "pliesWithoutProgress": self.plies_without_progress,
+                "history": [dict(entry) for entry in self.history],
                 # board as hex (every square holds 0-4), which keeps repeated positions compact
                 "positions": [[bytes(board).hex(), turn, count] for (board, turn), count in self._positions.items()],
             }
@@ -222,6 +262,8 @@ class Game:
             last = data["lastTurn"]
             if last is not None:
                 game.last_turn = (last["player"], rules.Turn(tuple(last["moves"]), tuple(last["jumped"])))
+
+            game.history = [_history_entry(entry, variant) for entry in data.get("history", [])]
 
             game._positions = Counter(
                 {(tuple(bytes.fromhex(hex_board)), turn): count for hex_board, turn, count in data["positions"]}
@@ -266,11 +308,18 @@ class Game:
                 },
                 "legal": [_turn_json(t) for t in self._legal],
                 "lastTurn": last,
+                "moveCount": len(self.history),
+                "lastMove": dict(self.history[-1]) if self.history else None,
                 "castles": {
                     "top": list(variant.home_castle[rules.BLACK]),
                     "bottom": list(variant.home_castle[rules.WHITE]),
                 },
             }
+
+    def history_snapshot(self):
+        """Every turn played so far, as JSON-ready data: each is {player, moves, jumped, piece, captured}."""
+        with self._lock:
+            return [dict(entry) for entry in self.history]
 
     def _find_legal_turn(self, moves):
         if not isinstance(moves, list) or not 2 <= len(moves) <= MAX_PATH_LENGTH:

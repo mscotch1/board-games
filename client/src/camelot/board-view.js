@@ -38,7 +38,8 @@ const kind = (piece) => (piece % 2 === 0 ? 'knight' : 'man');
  *
  * `view` has: rows, cols, mask, board, side, castles, lastTurn, clickable (Set),
  * movable (Set), candidates (Map of square -> { capture }), path, captured,
- * opponentPath, opponentHover.
+ * opponentPath, opponentHover, and optionally `trail` (the squares of a turn to show as
+ * a numbered route) and `ghosts` ([{ index, piece }]: taken pieces to draw faded where they stood).
  */
 export function boardMarkup(view) {
   const { rows, cols, mask, board, side, path, captured, opponentPath } = view;
@@ -132,6 +133,14 @@ export function boardMarkup(view) {
     pieces.push(drawPiece(index, piece));
   });
 
+  for (const { index, piece } of view.ghosts ?? []) {
+    const { x, y } = at(index);
+    pieces.push(drawPiece(index, piece, 'ghost'));
+    pieces.push(
+      `<path class="capture-mark ghost-mark" d="M${x + 24} ${y + 24} L${x + 76} ${y + 76} M${x + 76} ${y + 24} L${x + 24} ${y + 76}" />`,
+    );
+  }
+
   if (hasPath) {
     pieces.push(drawPiece(path.at(-1), board[origin], 'moving'));
   } else if (path.length === 1) {
@@ -159,6 +168,24 @@ export function boardMarkup(view) {
   };
 
   const lines = [route(path, '')];
+  const trail = view.trail ?? [];
+  if (trail.length >= 2) {
+    lines.push(route(trail, 'last'));
+    const from = at(trail[0]);
+    const to = at(trail.at(-1));
+    lines.push(`<circle class="trail-start" cx="${from.cx}" cy="${from.cy}" r="38" />`);
+    lines.push(`<circle class="trail-end" cx="${to.cx}" cy="${to.cy}" r="38" />`);
+    if (trail.length > 2) {
+      // a turn of several hops is numbered, so it can be followed
+      trail.slice(1).forEach((index, i) => {
+        const { cx, cy } = at(index);
+        lines.push(
+          `<circle class="trail-dot" cx="${cx + 26}" cy="${cy - 26}" r="23" />`,
+          `<text class="trail-num" x="${cx + 26}" y="${cy - 24}">${i + 1}</text>`,
+        );
+      });
+    }
+  }
   if (opponentPath.length >= 2) {
     lines.push(route(opponentPath, 'theirs'));
     const { cx, cy } = at(opponentPath.at(-1));

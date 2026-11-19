@@ -178,6 +178,23 @@
             </div>
           </section>
 
+          <section class="panel history" aria-label="Move history">
+            <div class="history-head">
+              <h2>Moves</h2>
+              <div class="history-nav">
+                <button id="history-prev" class="btn ghost" type="button" aria-label="Previous move" title="Previous move (left arrow)">&#9664;</button>
+                <button id="history-next" class="btn ghost" type="button" aria-label="Next move" title="Next move (right arrow)">&#9654;</button>
+                <button id="history-replay" class="btn ghost" type="button" title="Play the move back, hop by hop">Replay</button>
+              </div>
+            </div>
+            <ol id="history-list" class="history-list" aria-label="Moves played"></ol>
+            <label class="history-auto"><input type="checkbox" id="history-auto" /> Play back their moves</label>
+            <p id="history-viewing" class="history-viewing" hidden>
+              <span id="history-viewing-text"></span>
+              <button id="history-live" class="btn" type="button">Back to game</button>
+            </p>
+          </section>
+
           <section class="panel chat">
             <h2>Chat</h2>
             <ol id="chat-log" class="chat-log" aria-live="polite"></ol>

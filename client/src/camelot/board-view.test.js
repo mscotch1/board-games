@@ -72,6 +72,33 @@ describe('board markup', () => {
     expect(markup).toContain('href="#piece-knight"');
   });
 
+  it('draws a numbered trail for a turn of several hops', () => {
+    const markup = boardMarkup(view({ trail: [185, 100, 17, 5] }));
+    expect(count(markup, 'route last')).toBe(1);
+    expect(count(markup, 'trail-start')).toBe(1);
+    expect(count(markup, 'trail-end')).toBe(1);
+    expect(count(markup, 'class="trail-num"')).toBe(3);
+    expect(markup).toContain('>3</text>');
+  });
+
+  it('draws a single step as a route without numbers', () => {
+    const markup = boardMarkup(view({ trail: [100, 101] }));
+    expect(count(markup, 'route last')).toBe(1);
+    expect(count(markup, 'trail-num')).toBe(0);
+  });
+
+  it('draws nothing for a trail that is not there', () => {
+    expect(boardMarkup(view())).not.toContain('route last');
+    expect(boardMarkup(view({ trail: [100] }))).not.toContain('route last');
+  });
+
+  it('draws taken pieces faded and crossed out where they stood', () => {
+    const markup = boardMarkup(view({ ghosts: [{ index: 100, piece: 3 }, { index: 101, piece: 2 }] }));
+    expect(count(markup, 'piece black ghost')).toBe(1);
+    expect(count(markup, 'piece white ghost')).toBe(1);
+    expect(count(markup, 'ghost-mark')).toBe(2);
+  });
+
   it('only marks clickable squares as clickable', () => {
     const markup = boardMarkup(view({ clickable: new Set([100]) }));
     expect(count(markup, 'clickable')).toBe(1);

@@ -153,6 +153,7 @@ def ready_message(record, token):
             "token": token,
             "state": record.game.snapshot(),
             "chat": record.chat,
+            "history": record.game.history_snapshot(),
             "opponentConnected": registry.online(record, opponent),
             "computer": record.bot,  # the level, when the opponent is the computer
         },

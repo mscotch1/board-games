@@ -69,6 +69,16 @@ responsive. At most `BOT_SEARCHES` (default 2) computer moves are worked out at 
 number of cores you can spare. The evaluation weights (`DEFAULT_WEIGHTS` in `ai.py`) were set by hand;
 `python selfplay.py speed` and `python selfplay.py match camelot` let you measure the search and watch it play itself.
 
+## Following the game
+
+The board always shows the last turn played: a numbered route from where the piece started to where it landed, and the pieces
+it took, faded and crossed out where they stood. The opponent's turn is also played back hop by hop as it arrives, so a quick
+move or a long chain of jumps can be followed (the *Play back their moves* box turns this off; it starts off if the system
+asks for reduced motion). The *Moves* panel lists every turn in the usual notation (`e6–e8` for steps and canters,
+`d6×f8×h10` for jumps); click one, or use the arrow buttons or keys, to see the position after it, and *Replay* plays a turn
+back again. The server records each turn (who, the path, the piece and what it took) in the saved game, which is what lets the
+board be wound back, and why the history is still there after a reload or a restart.
+
 ## Leaving and coming back
 
 Games are saved after every move, so nothing is lost to a reload, a dropped connection or a server restart.

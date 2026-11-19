@@ -803,3 +803,176 @@ a.ext::after {
     font-size: 0.65rem;
   }
 }
+
+/* the turn just played: where the piece went, hop by hop, and the pieces it took */
+
+.route.last {
+  stroke: var(--accent-2);
+  stroke-width: 12;
+  stroke-dasharray: 24 12;
+  opacity: 0.9;
+}
+
+.trail-start {
+  fill: none;
+  stroke: var(--accent-2);
+  stroke-width: 6;
+  stroke-dasharray: 10 8;
+  pointer-events: none;
+}
+
+.trail-end {
+  fill: none;
+  stroke: var(--accent-2);
+  stroke-width: 7;
+  pointer-events: none;
+}
+
+.trail-dot {
+  fill: var(--accent-2);
+  stroke: var(--bg);
+  stroke-width: 4;
+  pointer-events: none;
+}
+
+.trail-num {
+  fill: var(--bg);
+  font: 700 28px var(--font-body, sans-serif);
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.piece.ghost {
+  opacity: 0.38;
+}
+
+.capture-mark.ghost-mark {
+  opacity: 0.85;
+}
+
+/* the list of turns played */
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.history-head h2 {
+  margin-bottom: 0;
+}
+
+.history-nav {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.history-nav .btn {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.history-list {
+  max-height: 9.5rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.hist-item {
+  display: grid;
+  grid-template-columns: 2rem 0.9rem 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hist-item:hover {
+  background: var(--surface-2);
+}
+
+.hist-item.active {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.hist-num {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hist-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+.hist-dot.white {
+  background: #f5ecd6;
+}
+
+.hist-dot.black {
+  background: #20202c;
+}
+
+.hist-move {
+  font-variant-numeric: tabular-nums;
+}
+
+.hist-taken {
+  color: var(--danger);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.hist-empty {
+  padding: 0.3rem 0.4rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.history-viewing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--accent-2) 18%, transparent);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.history-viewing .btn {
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8rem;
+}
+.history-auto {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
