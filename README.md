@@ -136,3 +136,22 @@ Restarting or replacing the container keeps every game, as long as `/data` is a 
 | `WAITING_TTL_HOURS`    | Hours before a game nobody has joined is deleted. Default 24.            |
 | `GAME_TTL_DAYS`        | Days of inactivity before a game in progress is deleted. Default 7.      |
 | `FINISHED_TTL_HOURS`   | Hours a finished game is kept. Default 24.                               |
+
+## Releasing
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow tests the code, builds the image and publishes it to GHCR. The build is stamped with the tag, the
+commit and the time (the `APP_VERSION`, `APP_COMMIT` and `APP_BUILT` build arguments), and that stamp appears:
+
+- in the footer of every page: `Monka Games · v1.0.0 · a1b2c3d · built 19 Nov 2026` (hover for the full commit and time);
+- at `/version`, as JSON, so you can check what a deployment is actually running;
+- in `/healthz`, which also reports `status`, `uptimeSeconds`, the number of games by status and how many
+  players are connected. It returns 503 if the saved games can't be read, and the image's `HEALTHCHECK` uses it,
+  so `docker ps` shows `healthy` or `unhealthy`.
+
+A build outside the release workflow (`npm run build`, a local `docker build`) says `dev build`, or uses
+`git describe` when there is a repository.

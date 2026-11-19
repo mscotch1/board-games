@@ -1,8 +1,10 @@
+import logging
 import re
+import time
 from os import getenv, path
 
 from dotenv import load_dotenv
-from flask import Flask, abort, redirect, request, send_from_directory
+from flask import Flask, abort, jsonify, redirect, request, send_from_directory
 
 # python-socketio only passes a refusal reason on to the client for its own exception
 from flask_socketio import ConnectionRefusedError, SocketIO, emit
@@ -13,6 +15,8 @@ from store import open_store
 from variants import VARIANTS
 
 load_dotenv()
+
+log = logging.getLogger(__name__)
 
 BASE_DIR = path.dirname(path.abspath(__file__))
 MAX_CHAT_LENGTH = 500
@@ -57,6 +61,15 @@ socketio = SocketIO(app, async_mode="threading", cors_allowed_origins=allowed_or
 
 # DATA_DIR is where games are saved so they survive a restart; set it empty to keep them in memory only
 registry = Registry(open_store(getenv("DATA_DIR", path.join(BASE_DIR, "data"))), ttl=ttl_from_environment())
+
+
+# Which build this is. The Docker image sets these (see the Dockerfile); elsewhere they are "dev".
+BUILD = {
+    "version": getenv("APP_VERSION") or "dev",
+    "commit": getenv("APP_COMMIT") or "",
+    "built": getenv("APP_BUILT") or "",
+}
+STARTED_AT = time.time()
 
 
 def valid_square(value, size):
@@ -259,9 +272,26 @@ def handle_resign(record, seat):
 # --- serving the client -------------------------------------------------------
 
 
+def no_store(response):
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/version")
+def version():
+    return no_store(jsonify(BUILD))
+
+
 @app.get("/healthz")
 def healthz():
-    return "ok"
+    """For load balancers and `docker ps`: 200 when the server can read its saved games."""
+    try:
+        stats = registry.stats()
+    except Exception:
+        log.exception("health check failed")
+        return no_store(jsonify({"status": "error", **BUILD})), 503
+
+    return no_store(jsonify({"status": "ok", **BUILD, "uptimeSeconds": int(time.time() - STARTED_AT), **stats}))
 
 
 @app.get("/", defaults={"filename": ""})

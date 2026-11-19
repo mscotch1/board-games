@@ -381,8 +381,42 @@ def test_missing_files_and_traversal_are_404(static_dir, url):
     assert app_module.app.test_client().get(url).status_code == 404
 
 
-def test_healthz():
-    assert app_module.app.test_client().get("/healthz").data == b"ok"
+def test_healthz_reports_ok_with_the_build_and_game_counts(monkeypatch):
+    monkeypatch.setattr(app_module, "BUILD", {"version": "v1.2.0", "commit": "abc1234", "built": "2026-11-19T15:30:00Z"})
+    connect("waiting-game")
+    pair(code="playing-game")
+
+    response = app_module.app.test_client().get("/healthz")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+
+    body = response.get_json()
+    assert body["status"] == "ok"
+    assert (body["version"], body["commit"], body["built"]) == ("v1.2.0", "abc1234", "2026-11-19T15:30:00Z")
+    assert body["games"] == {"waiting": 1, "playing": 1, "finished": 0}
+    assert body["playersOnline"] == 3
+    assert isinstance(body["uptimeSeconds"], int) and body["uptimeSeconds"] >= 0
+
+
+def test_healthz_fails_when_the_saved_games_cannot_be_read(monkeypatch):
+    def broken():
+        raise OSError("disk is gone")
+
+    monkeypatch.setattr(app_module.registry, "stats", broken)
+    response = app_module.app.test_client().get("/healthz")
+    assert response.status_code == 503
+    assert response.get_json()["status"] == "error"
+
+
+def test_version_says_which_build_this_is(monkeypatch):
+    monkeypatch.setattr(app_module, "BUILD", {"version": "v1.2.0", "commit": "abc1234", "built": "2026-11-19T15:30:00Z"})
+    response = app_module.app.test_client().get("/version")
+    assert response.get_json() == {"version": "v1.2.0", "commit": "abc1234", "built": "2026-11-19T15:30:00Z"}
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_an_unconfigured_build_is_a_dev_build():
+    assert app_module.BUILD["version"] in ("dev", app_module.getenv("APP_VERSION"))
 
 
 @pytest.mark.parametrize("value, expected", [

@@ -252,6 +252,12 @@ a.ext::after {
   margin-left: auto;
 }
 
+/* in the game the footer is just another quiet row at the bottom */
+.game .site-footer {
+  flex: none;
+  padding: 0;
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 23rem;

@@ -37,10 +37,18 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
 
+      - name: Note when this was built
+        run: echo "APP_BUILT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          # shown in the page footer and reported by /version
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
+            APP_COMMIT=${{ github.sha }}
+            APP_BUILT=${{ env.APP_BUILT }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

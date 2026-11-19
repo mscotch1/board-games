@@ -406,6 +406,32 @@ dialog .row {
   justify-content: center;
 }
 
+/* the build line at the foot of each page */
+
+.site-footer {
+  padding: 0.5rem 1rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-align: center;
+  cursor: default;
+}
+
+/* on the pages with the castle skyline, it floats over it in a small pill */
+.site-footer.floating {
+  position: fixed;
+  bottom: 0.6rem;
+  left: 50%;
+  z-index: 3;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.25rem 0.9rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

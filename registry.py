@@ -284,6 +284,15 @@ class Registry:
         with self._lock:
             return list(self._records.values())
 
+    def stats(self):
+        """How many games there are by status, and how many players are connected. Reads the
+        store, so it also shows whether the store is working."""
+        with self._lock:
+            games = {"waiting": 0, "playing": 0, "finished": 0}
+            for _, status, _ in self._store.meta():
+                games[status] = games.get(status, 0) + 1
+            return {"games": games, "playersOnline": len(self._sids)}
+
     # --- expiry ---------------------------------------------------------------
 
     def purge_expired(self):

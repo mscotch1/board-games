@@ -363,3 +363,25 @@ def test_connecting_sweeps_occasionally(registry, store, clock):
     clock.advance(DEFAULT_TTL["waiting"] + PURGE_INTERVAL)
     registry.attach("s2", "new")
     assert [code for code, _, _ in store.meta()] == ["new"]
+
+
+# --- stats ------------------------------------------------------------------
+
+
+def test_stats_count_games_by_status_and_players_online(registry):
+    assert registry.stats() == {"games": {"waiting": 0, "playing": 0, "finished": 0}, "playersOnline": 0}
+
+    registry.attach("waiting-sid", "waiting")  # one player, one waiting game
+    registry.attach("p1", "playing")
+    registry.attach("p2", "playing")  # two players, a game in progress
+    registry.attach("f1", "finished")
+    done = registry.attach("f2", "finished")
+    done.record.game.resign(WHITE)  # two players, a finished game
+    registry.save(done.record)
+
+    stats = registry.stats()
+    assert stats["games"] == {"waiting": 1, "playing": 1, "finished": 1}
+    assert stats["playersOnline"] == 5
+
+    registry.detach("waiting-sid")
+    assert registry.stats()["playersOnline"] == 4

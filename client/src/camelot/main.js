@@ -1,5 +1,6 @@
 import { connect } from '../shared/connection.js';
 import { forgetGame, getGame, newToken, resumableGames, saveGame } from '../shared/saved-games.js';
+import { mountFooters } from '../shared/footer.js';
 import { mountThemePickers } from '../shared/theme.js';
 import { boardRatio, createBoardView } from './board-view.js';
 import './camelot.css';
@@ -11,6 +12,7 @@ const $ = (id) => document.getElementById(id);
 
 installSprite();
 mountThemePickers(document.querySelectorAll('[data-theme-picker]'));
+mountFooters();
 
 // Leaving a game doesn't end it: it can be resumed from the menu. Closing the socket
 // properly, rather than just navigating away, tells the opponent straight away.
