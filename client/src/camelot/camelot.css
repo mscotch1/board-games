@@ -63,7 +63,7 @@
 }
 
 .card-links a:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 a.ext::after {
@@ -137,7 +137,7 @@ a.ext::after {
 }
 
 .choices label:has(input:checked) {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   box-shadow: inset 0 0 0 1px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
@@ -171,7 +171,7 @@ a.ext::after {
 .divider span::after {
   content: '\25C6';
   margin: 0 0.5em;
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 0.6em;
   vertical-align: 0.15em;
 }
@@ -310,7 +310,7 @@ a.ext::after {
   font-size: 1.15rem;
   font-weight: 400;
   letter-spacing: 0.04em;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .players {
@@ -330,7 +330,7 @@ a.ext::after {
 }
 
 .player.active {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
@@ -431,7 +431,7 @@ a.ext::after {
 
 .resume h2 {
   margin-bottom: 0.5rem;
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 1.25rem;
 }
 
@@ -558,6 +558,19 @@ a.ext::after {
 .frame-outer { fill: var(--frame-outer); }
 .frame-inner { fill: var(--frame-inner); }
 
+#board {
+  /* overlay colours: bright, each with a dark line to set it off from every square (and the page theme) */
+  --b-gold: #ffd23a;
+  --b-gold-line: #6b4200;
+  --b-green: #38d472;
+  --b-green-line: #0a4d25;
+  --b-red: #ff5a45;
+  --b-red-line: #6e0f06;
+  --b-ink: #1a1206;
+  --b-outline: drop-shadow(1.5px 0 0 var(--b-ink)) drop-shadow(-1.5px 0 0 var(--b-ink)) drop-shadow(0 1.5px 0 var(--b-ink))
+    drop-shadow(0 -1.5px 0 var(--b-ink));
+}
+
 .sq {
   stroke: rgb(0 0 0 / 0.22);
   stroke-width: 2;
@@ -590,58 +603,64 @@ a.ext::after {
   pointer-events: none;
 }
 
-.hl.last { fill: var(--accent); opacity: 0.4; }
-.hl.path { fill: var(--good); opacity: 0.45; }
+/*
+ * Everything drawn over the board is a bright colour with a dark outline, so it shows up on the light squares, the
+ * dark squares and the castles alike (the board's own colours don't change with the theme).
+ */
+.hl.last { fill: var(--b-gold); stroke: var(--b-gold-line); stroke-width: 4; opacity: 0.6; }
+.hl.path { fill: var(--b-green); stroke: var(--b-green-line); stroke-width: 4; opacity: 0.65; }
 
 .hl.movable {
   fill: none;
-  stroke: var(--accent-2);
+  stroke: var(--b-gold);
   stroke-width: 7;
+  filter: var(--b-outline);
   animation: ring 1.8s ease-in-out infinite;
 }
 
 @keyframes ring {
-  50% { stroke-opacity: 0.35; }
+  50% { stroke-opacity: 0.55; }
 }
 
 .hl.opp-hover {
   fill: none;
-  stroke: var(--danger);
+  stroke: var(--b-red);
   stroke-width: 6;
   stroke-dasharray: 14 10;
+  filter: var(--b-outline);
 }
 
 .cand {
-  fill: var(--accent-2);
-  stroke: rgb(0 0 0 / 0.4);
-  stroke-width: 3;
+  fill: var(--b-gold);
+  stroke: var(--b-ink);
+  stroke-width: 4;
   pointer-events: none;
 }
 
 .cand.capture {
-  fill: color-mix(in srgb, var(--danger) 55%, transparent);
-  stroke: var(--danger);
+  fill: color-mix(in srgb, var(--b-red) 65%, transparent);
+  stroke: var(--b-red-line);
   stroke-width: 6;
 }
 
 .route {
   fill: none;
-  stroke: var(--good);
+  stroke: var(--b-green);
   stroke-width: 9;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.85;
+  filter: var(--b-outline);
   pointer-events: none;
 }
 
 .route.theirs {
-  stroke: var(--danger);
+  stroke: var(--b-red);
   stroke-dasharray: 4 18;
-  opacity: 0.9;
 }
 
 .route-end {
-  fill: var(--danger);
+  fill: var(--b-red);
+  filter: var(--b-outline);
   pointer-events: none;
 }
 
@@ -658,9 +677,10 @@ a.ext::after {
 }
 
 .capture-mark {
-  stroke: var(--danger);
+  stroke: var(--b-red);
   stroke-width: 9;
   stroke-linecap: round;
+  filter: var(--b-outline);
   pointer-events: none;
 }
 
@@ -807,36 +827,37 @@ a.ext::after {
 /* the turn just played: where the piece went, hop by hop, and the pieces it took */
 
 .route.last {
-  stroke: var(--accent-2);
+  stroke: var(--b-gold);
   stroke-width: 9;
   stroke-dasharray: 22 12;
-  opacity: 0.75;
 }
 
 .trail-start {
   fill: none;
-  stroke: var(--accent-2);
+  stroke: var(--b-gold);
   stroke-width: 6;
   stroke-dasharray: 10 8;
+  filter: var(--b-outline);
   pointer-events: none;
 }
 
 .trail-end {
   fill: none;
-  stroke: var(--accent-2);
+  stroke: var(--b-gold);
   stroke-width: 7;
+  filter: var(--b-outline);
   pointer-events: none;
 }
 
 .trail-dot {
-  fill: var(--accent-2);
-  stroke: var(--bg);
+  fill: var(--b-gold);
+  stroke: var(--b-ink);
   stroke-width: 4;
   pointer-events: none;
 }
 
 .trail-num {
-  fill: var(--bg);
+  fill: var(--b-ink);
   font: 700 28px var(--font-body, sans-serif);
   text-anchor: middle;
   dominant-baseline: central;
@@ -850,11 +871,6 @@ a.ext::after {
 /* the live board: just a small cross where a piece was taken */
 .capture-mark.live-mark {
   stroke-width: 7;
-  opacity: 0.6;
-}
-
-.capture-mark.ghost-mark {
-  opacity: 0.85;
 }
 
 /* the list of turns played */

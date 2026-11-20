@@ -4,6 +4,7 @@ import time
 import pytest
 
 import ai
+import native_search
 import rules
 from game import Game
 from rules import BLACK, WHITE
@@ -121,3 +122,13 @@ def test_computer_games_run_to_the_end_with_only_legal_turns(variant):
         if claim["repetition"] or claim["fiftyMoves"]:
             game.claim_draw(game.turn)
     assert game.over or plies == limit
+
+
+def test_each_variant_has_tuned_weights_that_python_and_native_agree_on():
+
+    assert ai.weights_for(CAMELOT)["centre"] > 0 and ai.weights_for(CAM)["curve"] > 1
+    game = Game(CAMELOT)
+    for native in (False, True) if native_search.available() else (False,):
+        turn = ai.choose_turn(CAMELOT, game.board, game.turn, game.castle_moves, game.legal_turns,
+                              level="hard", max_nodes=3000, native=native)
+        assert turn in game.legal_turns

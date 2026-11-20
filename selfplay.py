@@ -35,32 +35,65 @@ def play(variant, white_weights, black_weights, max_nodes=1500, max_plies=300, r
     return game.winner or "draw"
 
 
-def match(variant, a, b, games, max_nodes):
-    """Points for weights `a` against `b` (1 per win, 0.5 per draw), alternating colours."""
-    points = 0.0
-    for n in range(games):
-        a_is_white = n % 2 == 0
-        result = play(variant, a if a_is_white else b, b if a_is_white else a, max_nodes, rng=random.Random(n))
-        if result == "draw":
-            points += 0.5
-        elif (result == WHITE) == a_is_white:
-            points += 1
-    return points
-
-
-def tune(variant, rounds, games, max_nodes, seed=1):
+def play_from_opening(args):
+    """One game of an arena match: `a` against `b` from a random opening. Returns A's points (1, 0.5 or 0)."""
+    key, a, b, max_nodes, seed, a_is_white, opening_plies = args
+    variant = VARIANTS[key]
     rng = random.Random(seed)
-    best = dict(ai.DEFAULT_WEIGHTS)
+    game = Game(variant)
+    for _ in range(opening_plies):  # the same opening for both colours, so the pair is fair
+        if game.over:
+            break
+        game.play_turn(game.turn, list(rng.choice(game.legal_turns).moves))
+    weights = {WHITE: a if a_is_white else b, BLACK: b if a_is_white else a}
+    plies = 0
+    while not game.over and plies < 240:
+        side = game.turn
+        turn = ai.choose_turn(
+            variant, game.board, side, game.castle_moves, game.legal_turns,
+            level="hard", seen=ai.game_seen(game), weights=weights[side], max_nodes=max_nodes, min_depth=1,
+        )
+        game.play_turn(side, list(turn.moves))
+        plies += 1
+        claim = game.claimable()
+        if claim["repetition"] or claim["fiftyMoves"]:
+            game.claim_draw(side)
+    if not game.winner:
+        return 0.5
+    return 1.0 if (game.winner == WHITE) == a_is_white else 0.0
+
+
+def arena(pool, key, a, b, pairs, max_nodes, first_seed=0, opening_plies=6):
+    """Points for weights `a` against `b` over `pairs` openings, each played from both sides."""
+    jobs = [
+        (key, a, b, max_nodes, first_seed + n, a_white, opening_plies)
+        for n in range(pairs)
+        for a_white in (True, False)
+    ]
+    return sum(pool.map(play_from_opening, jobs, chunksize=2)), len(jobs)
+
+
+def tune(pool, key, rounds, pairs, max_nodes, seed=1, start=None):
+    """Coordinate hill-climbing: change one weight, keep it if it clearly beats the current best."""
+    rng = random.Random(seed)
+    best = dict(start or ai.DEFAULT_WEIGHTS)
     for r in range(rounds):
         trial = dict(best)
-        key = rng.choice(["knight", "advance", "goal"])
-        trial[key] = max(10, int(trial[key] * rng.choice([0.6, 0.8, 1.25, 1.6])))
-        score = match(variant, trial, best, games, max_nodes)
-        kept = score > games / 2 + 0.5
-        print(f"round {r + 1}: {key}={trial[key]} scored {score}/{games} {'kept' if kept else 'dropped'}", flush=True)
+        name = rng.choice(["knight", "advance", "goal", "curve", "centre"])
+        if name == "curve":
+            trial[name] = round(max(0.4, min(3.0, trial[name] * rng.choice([0.7, 0.85, 1.2, 1.45]))), 2)
+        elif name == "centre":
+            trial[name] = max(0, int(trial[name] + rng.choice([-10, 10, 20, 30])))
+        else:
+            trial[name] = max(10, int(trial[name] * rng.choice([0.6, 0.8, 1.25, 1.6])))
+        if trial == best:
+            continue
+        points, games = arena(pool, key, trial, best, pairs, max_nodes, first_seed=1000 * (r + 1))
+        kept = points > games * 0.55
+        print(f"round {r + 1}: {name}={trial[name]} scored {points}/{games} {'kept' if kept else 'dropped'}", flush=True)
         if kept:
             best = trial
-    print("weights:", best)
+    print("weights:", best, flush=True)
     return best
 
 
@@ -77,8 +110,13 @@ if __name__ == "__main__":
             print(f"{v.key}: depth {searcher.depth_reached}, {searcher.nodes} nodes in {took:.2f}s "
                   f"= {searcher.nodes / took:.0f}/s, {len(scored)} moves")
     elif command == "match":
-        start = time.monotonic()
-        results = [play(variant, ai.DEFAULT_WEIGHTS, ai.DEFAULT_WEIGHTS, rng=random.Random(n)) for n in range(4)]
-        print(results, f"{time.monotonic() - start:.1f}s")
+        from multiprocessing import Pool
+
+        with Pool() as pool:
+            points, games = arena(pool, variant.key, ai.DEFAULT_WEIGHTS, ai.DEFAULT_WEIGHTS, 8, 100_000)
+        print(f"{points}/{games}")
     elif command == "tune":
-        tune(variant, rounds=int(sys.argv[3]) if len(sys.argv) > 3 else 8, games=6, max_nodes=1200)
+        from multiprocessing import Pool
+
+        with Pool() as pool:
+            tune(pool, variant.key, rounds=int(sys.argv[3]) if len(sys.argv) > 3 else 20, pairs=100, max_nodes=100_000)

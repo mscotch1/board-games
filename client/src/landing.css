@@ -69,7 +69,7 @@
 }
 
 .landing-links a:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 a.ext::after {
@@ -87,7 +87,7 @@ a.ext::after {
 
 .not-found-code {
   margin: 0.5rem 0;
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 7rem;
   line-height: 1;
   opacity: 0.85;

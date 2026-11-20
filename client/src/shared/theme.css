@@ -14,10 +14,11 @@
   --bg-glow: #1d2656;
   --surface: #1a2147;
   --surface-2: #252e60;
-  --border: #3d4887;
+  --border: #5562a8;
   --text: #f4edd9;
   --muted: #aeb4d6;
   --accent: #e8b94d;
+  --accent-text: #e8b94d;
   --accent-2: #f6d783;
   --accent-ink: #2a1c05;
   --good: #7fd6a2;
@@ -32,7 +33,7 @@
   --frame-outer: #e0b04a;
   --frame-inner: #6a1f2f;
   --sq-light: #f1e3ba;
-  --sq-dark: #b99660;
+  --sq-dark: #a8844f;
   --sq-castle: #8e2f40;
   --castle-ink: #f2cc6d;
 }
@@ -45,13 +46,14 @@
     --bg-glow: #fbf3da;
     --surface: #fcf6e1;
     --surface-2: #efdfb4;
-    --border: #cfb77c;
+    --border: #a08545;
     --text: #2b2113;
     --muted: #6b5a37;
     --accent: #c98f1c;
+    --accent-text: #80560a;
     --accent-2: #e8b64a;
     --accent-ink: #20150a;
-    --good: #2f7d4f;
+    --good: #2a6e47;
     --on-good: #ffffff;
     --danger: #a8332b;
     --crimson: #a5283a;
@@ -72,13 +74,14 @@
   --bg-glow: #fbf3da;
   --surface: #fcf6e1;
   --surface-2: #efdfb4;
-  --border: #cfb77c;
+  --border: #a08545;
   --text: #2b2113;
   --muted: #6b5a37;
   --accent: #c98f1c;
+  --accent-text: #80560a;
   --accent-2: #e8b64a;
   --accent-ink: #20150a;
-  --good: #2f7d4f;
+  --good: #2a6e47;
   --on-good: #ffffff;
   --danger: #a8332b;
   --crimson: #a5283a;
@@ -246,7 +249,7 @@ p {
 }
 
 .btn:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 
 .btn:active:not(:disabled) {
@@ -300,7 +303,7 @@ p {
 }
 
 .theme-picker button:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .theme-picker button[aria-pressed='true'] {
@@ -335,8 +338,8 @@ p {
 }
 
 .home-link:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-text);
+  color: var(--accent-text);
 }
 
 .home-link svg {
@@ -440,7 +443,7 @@ dialog .row {
 }
 
 .site-footer a:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* on the pages with the castle skyline, it floats over it in a small pill */

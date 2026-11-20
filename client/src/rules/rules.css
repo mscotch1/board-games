@@ -41,7 +41,7 @@ html {
 
 .rules-nav a:hover {
   background: var(--surface-2);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .rules {
@@ -85,7 +85,7 @@ html {
 .rules-section h2 {
   font-size: 2rem;
   line-height: 1.1;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* a small flourish under each section heading */
@@ -120,7 +120,7 @@ html {
 }
 
 .rules-section li::marker {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .diagram {
@@ -176,7 +176,7 @@ html {
 }
 
 .compare thead th {
-  color: var(--accent);
+  color: var(--accent-text);
   font-family: var(--font-display);
   font-size: 1.15rem;
   font-weight: 400;
@@ -198,7 +198,7 @@ html {
 }
 
 .rules a:not(.btn) {
-  color: var(--accent);
+  color: var(--accent-text);
   text-underline-offset: 0.2em;
 }
 
@@ -217,7 +217,7 @@ html {
 }
 
 .further-reading li:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 
 /* links that leave the site carry a small arrow */

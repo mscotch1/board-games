@@ -29,7 +29,20 @@ DEFAULT_WEIGHTS = {
     "knight": 150,
     "advance": 60,  # for a piece that has crossed the whole board
     "goal": 120,  # for a piece standing in the enemy castle
+    "curve": 1.0,  # how the value of advancing grows with how far: 1 evenly, above 1 mostly late on
+    "centre": 0,  # for a piece in the middle columns rather than at the sides
 }
+
+# What self-play found best for each variant (python selfplay.py tune): against the plain weights above these won
+# about 70% of games on Camelot and 63% on Cam, from random openings, at 100,000 and 400,000 nodes a move.
+VARIANT_WEIGHTS = {
+    "camelot": {**DEFAULT_WEIGHTS, "curve": 1.74, "centre": 10},
+    "cam": {**DEFAULT_WEIGHTS, "curve": 2.52},
+}
+
+
+def weights_for(variant):
+    return VARIANT_WEIGHTS.get(variant.key, DEFAULT_WEIGHTS)
 
 
 class Level(NamedTuple):
@@ -64,6 +77,8 @@ class _Tables:
             rules.WHITE: [(last - variant.row(i)) / last for i in range(variant.size)],
             rules.BLACK: [variant.row(i) / last for i in range(variant.size)],
         }
+        middle = (variant.cols - 1) / 2
+        self.centrality = [1 - abs(variant.col(i) - middle) / middle for i in range(variant.size)]
 
 
 _tables_for = {}
@@ -78,9 +93,14 @@ def _tables(variant):
 def advance_table(variant, weights):
     """(white's, black's) value of standing on each square, in whole hundredths: all the arithmetic
     is on integers, so the Python and C searches agree exactly."""
-    progress = _tables(variant).progress
+    tables = _tables(variant)
+    curve, centre = weights.get("curve", 1.0), weights.get("centre", 0)
     return tuple(
-        tuple(int(round(weights["advance"] * p)) for p in progress[side]) for side in (rules.WHITE, rules.BLACK)
+        tuple(
+            int(round(weights["advance"] * p**curve + centre * c))
+            for p, c in zip(tables.progress[side], tables.centrality)
+        )
+        for side in (rules.WHITE, rules.BLACK)
     )
 
 
@@ -335,7 +355,7 @@ def searcher_class(native=None):
 
 
 def choose_turn(variant, board, side, castle_moves, legal, *, level=DEFAULT_LEVEL, seen=None,
-                weights=DEFAULT_WEIGHTS, rng=random, max_nodes=None, min_depth=MIN_DEPTH, native=None):
+                weights=None, rng=random, max_nodes=None, min_depth=MIN_DEPTH, native=None):
     """The turn the computer plays: one of `legal`, chosen by searching.
 
     `castle_moves` is {side: moves already made between the castle squares}. Raises
@@ -344,6 +364,7 @@ def choose_turn(variant, board, side, castle_moves, legal, *, level=DEFAULT_LEVE
     if not legal:
         raise ValueError("there is no legal turn to choose")
     settings = LEVELS[level]
+    weights = weights or weights_for(variant)
     counts = (castle_moves[rules.WHITE], castle_moves[rules.BLACK])
     def search(cls):
         searcher = cls(variant, weights, settings.seconds, max_nodes, settings.max_depth, min_depth)

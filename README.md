@@ -66,8 +66,10 @@ CI builds the library and fails if those tests are skipped.
 
 The C search releases Python's lock while it thinks, so searches really run side by side and the web server stays
 responsive. At most `BOT_SEARCHES` (default 2) computer moves are worked out at once and the rest wait; set it to the
-number of cores you can spare. The evaluation weights (`DEFAULT_WEIGHTS` in `ai.py`) were set by hand;
-`python selfplay.py speed` and `python selfplay.py match camelot` let you measure the search and watch it play itself.
+number of cores you can spare. The evaluation weights (`VARIANT_WEIGHTS` in `ai.py`) were tuned by self-play from random openings: against the
+hand-set `DEFAULT_WEIGHTS` they win about 70% of games on Camelot and 63% on Cam. `python selfplay.py speed`,
+`python selfplay.py match camelot` and `python selfplay.py tune camelot 40` measure the search, check the engine and
+repeat the tuning (it uses every core).
 
 ## Following the game
 
