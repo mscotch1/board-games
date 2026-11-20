@@ -117,6 +117,7 @@
 
         <section id="waiting" class="stack" hidden>
           <p>Send this link to your opponent:</p>
+          <button id="share" class="btn primary share" type="button" hidden>Share the link&hellip;</button>
           <div class="row">
             <output id="invite-link" class="invite"></output>
             <button id="copy" class="btn" type="button">Copy</button>
@@ -161,8 +162,8 @@
           <section class="panel controls">
             <p id="hint" class="hint"></p>
             <p id="notice" class="notice" role="alert"></p>
-            <div id="turn-actions" class="row turn-actions">
-              <button id="undo" class="btn" type="button">Undo</button>
+            <div id="turn-actions" class="turn-actions">
+              <button id="undo" class="btn ghost" type="button" hidden>&#8630; Undo</button>
               <button id="end-turn" class="btn primary" type="button">End turn</button>
             </div>
 

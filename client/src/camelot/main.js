@@ -7,7 +7,10 @@ import './camelot.css';
 import { describeMove, ghostsOf, positionAfter, replayFrames, undoMove } from './history.js';
 import { rematchCode } from './rematch.js';
 import { installSprite } from './sprite.js';
-import { exactTurn, isFinished, mustCapture, nextSquares, startSquares, capturedSoFar } from './selection.js';
+import {
+  exactTurn, isFinished, mustCapture, nextSquares, startSquares, capturedSoFar, turnsStartingWith,
+} from './selection.js';
+import { canShare, shareInvite } from './share.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -111,6 +114,7 @@ function start(code, side, variant, computer) {
   connection.on('waiting', () => {
     saveGame(code, { token, variant, pending: false });
     $('connecting').hidden = true;
+    $('share').hidden = !canShare(navigator, inviteShareData());
     $('waiting').hidden = false;
   });
   connection.on('game-ready', ({ side: yourSide, state, chat, opponentConnected, computer: level, history }) => {
@@ -191,6 +195,21 @@ $('cancel').addEventListener('click', () => {
   setTimeout(() => (location.href = location.pathname), 150);
 });
 
+function inviteShareData() {
+  return {
+    title: 'Monka Games',
+    text: 'Join me for a game of Camelot on Monka Games:',
+    url: $('invite-link').textContent,
+  };
+}
+
+// where the device has a share sheet, one button sends the link by text message, mail or chat app
+$('share').addEventListener('click', async () => {
+  if ((await shareInvite(navigator, inviteShareData())) === 'failed') {
+    $('share').hidden = true; // fall back to Copy, which is still there
+  }
+});
+
 $('copy').addEventListener('click', async () => {
   const button = $('copy');
   try {
@@ -218,6 +237,7 @@ function begin(code, side, state, chat = [], opponentConnected = true, computer 
     state,
     computer,
     path: [],
+    redo: null,
     pending: false,
     opponentPath: [],
     opponentHover: null,
@@ -244,9 +264,16 @@ function applyState(state) {
   stopReplay();
   session.review = null;
   const turnsBefore = session.state.moveCount;
+  const building = session.path;
   session.state = state;
-  session.path = [];
+  // a draw offer or a reconnect sends the game again; a move being built stays as it is if it is still possible
+  session.path =
+    building.length > 0 && state.moveCount === turnsBefore && state.turn === session.side && !isOver(state) &&
+    turnsStartingWith(state.legal, building).length > 0
+      ? building
+      : [];
   session.pending = false;
+  session.redo = null;
   session.opponentPath = [];
   $('notice').textContent = '';
 
@@ -296,13 +323,14 @@ function handleSquare(index) {
 
   const { state, path } = session;
   $('notice').textContent = '';
+  session.redo = null;
 
   if (path.length === 0) {
     if (startSquares(state.legal).has(index)) {
       setPath([index]);
     }
   } else if (path.length === 1 && index === path[0]) {
-    setPath([]);
+    // tapping the chosen piece again does nothing: a second tap by mistake mustn't lose the choice (Undo does)
   } else if (nextSquares(state.legal, path).has(index)) {
     setPath([...path, index]);
   } else if (path.length === 1 && startSquares(state.legal).has(index)) {
@@ -321,9 +349,20 @@ $('claim-draw').addEventListener('click', () => connection.send('claim-draw'));
 $('accept-draw').addEventListener('click', () => connection.send('respond-draw', { accept: true }));
 $('decline-draw').addEventListener('click', () => connection.send('respond-draw', { accept: false }));
 
+// Undo takes back one step. Straight afterwards the same button puts it back, so a slip of the finger costs nothing.
 $('undo').addEventListener('click', () => {
-  if (session && isMyTurn() && session.path.length > 0) {
-    setPath(session.path.length === 1 ? [] : session.path.slice(0, -1));
+  if (!session || !isMyTurn()) {
+    return;
+  }
+  if (session.redo !== null) {
+    const putBack = session.redo;
+    session.redo = null;
+    setPath(putBack);
+  } else if (session.path.length > 0) {
+    const before = session.path;
+    setPath(before.length === 1 ? [] : before.slice(0, -1));
+    session.redo = before;
+    render();
   }
 });
 
@@ -622,7 +661,9 @@ function renderControls(myTurn) {
   $('turn-actions').classList.toggle('idle', !myTurn);
   const complete = myTurn && exactTurn(state.legal, path) !== null;
 
-  $('undo').disabled = !myTurn || path.length === 0;
+  const undoing = session.redo !== null;
+  $('undo').hidden = !myTurn || (path.length === 0 && !undoing);
+  $('undo').textContent = undoing ? '↪ Put back' : '↶ Undo';
   $('end-turn').disabled = !complete;
   $('end-turn').classList.toggle('ready', complete && isFinished(state.legal, path));
 
