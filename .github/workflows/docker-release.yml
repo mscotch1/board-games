@@ -32,7 +32,7 @@ jobs:
       PRERELEASE: ${{ contains(github.ref_name, '-') }}
     steps:
       # the whole history, so the next step can check which branch the tag is on
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
