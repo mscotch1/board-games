@@ -89,7 +89,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       # a GitHub release for the tag, with notes written from the commits and pull requests since the last one
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           prerelease: ${{ env.PRERELEASE == 'true' }}
